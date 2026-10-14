@@ -1,0 +1,17 @@
+{
+  "name": "zvezdnaya-tropinka",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Мини-игра-платформер для знакомства: короткий уровень и зашифрованная личная история в награду",
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8080 --bind 127.0.0.1",
+    "build:rewards": "node tools/build-rewards.mjs",
+    "build:rewards:example": "node tools/build-rewards.mjs --example",
+    "test": "node test/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  },
+  "license": "UNLICENSED"
+}

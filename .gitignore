@@ -1,0 +1,11 @@
+node_modules/
+package-lock.json
+.DS_Store
+.cursor/
+
+# Личные истории и ключ шифрования НИКОГДА не попадают в репозиторий
+content/stories.json
+content/.key
+
+# Документация остаётся только локально
+README.md
