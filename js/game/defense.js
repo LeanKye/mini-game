@@ -35,10 +35,11 @@ const ENEMIES = {
 };
 
 const WAVES = [
-  { groups: [{ type: 'grunt', count: 6, gap: 44, delay: 0 }], reward: 12 },
-  { groups: [{ type: 'grunt', count: 9, gap: 34, delay: 0 }, { type: 'runner', count: 5, gap: 26, delay: 200 }], reward: 14 },
-  { groups: [{ type: 'runner', count: 12, gap: 22, delay: 0 }, { type: 'tank', count: 3, gap: 64, delay: 260 }], reward: 16 },
+  { hpMul: 1, groups: [{ type: 'grunt', count: 6, gap: 44, delay: 0 }], reward: 12 },
+  { hpMul: 1.1, groups: [{ type: 'grunt', count: 9, gap: 34, delay: 0 }, { type: 'runner', count: 6, gap: 26, delay: 200 }], reward: 14 },
+  { hpMul: 1.3, groups: [{ type: 'runner', count: 12, gap: 22, delay: 0 }, { type: 'tank', count: 3, gap: 64, delay: 260 }], reward: 16 },
   {
+    hpMul: 1.5,
     groups: [
       { type: 'grunt', count: 14, gap: 26, delay: 0 },
       { type: 'runner', count: 10, gap: 20, delay: 240 },
@@ -47,6 +48,7 @@ const WAVES = [
     reward: 18,
   },
   {
+    hpMul: 1.9,
     groups: [
       { type: 'mini', count: 2, gap: 90, delay: 0 },
       { type: 'grunt', count: 16, gap: 22, delay: 120 },
@@ -55,9 +57,10 @@ const WAVES = [
     reward: 22,
   },
   {
+    hpMul: 2.4,
     groups: [
-      { type: 'boss', count: 2, gap: 160, delay: 0 },
-      { type: 'tank', count: 10, gap: 44, delay: 140 },
+      { type: 'boss', count: 1, gap: 0, delay: 0 },
+      { type: 'tank', count: 8, gap: 46, delay: 160 },
       { type: 'runner', count: 20, gap: 14, delay: 380 },
       { type: 'grunt', count: 20, gap: 18, delay: 560 },
     ],
@@ -125,6 +128,7 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
   let enemies = [];
   let shots = [];
   let effects = [];
+  let floaters = [];
   let gold = START_GOLD;
   let lives = START_LIVES;
   let waveIndex = 0;
@@ -247,6 +251,7 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
     enemies = [];
     shots = [];
     effects = [];
+    floaters = [];
     gold = START_GOLD;
     lives = START_LIVES;
     waveIndex = 0;
@@ -281,6 +286,7 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
     if (enemy.hp <= 0 && enemy.alive) {
       enemy.alive = false;
       gold += enemy.gold;
+      floaters.push({ x: enemy.x, y: enemy.y - enemy.r - 6, text: `+${enemy.gold}`, life: 0.85, max: 0.85 });
       burst(enemy.x, enemy.y, enemy.dark, enemy.boss ? 16 : 8, enemy.boss ? 3.6 : 2.4);
       effects.push({ kind: 'poof', x: enemy.x, y: enemy.y, r: enemy.r + 4, life: 0.4, max: 0.4, color: enemy.color });
     }
@@ -308,6 +314,14 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
     const def = TOWERS[t.type];
     t.recoil = 6;
     aimAt(t, target);
+    effects.push({
+      kind: 'flash',
+      x: t.x + Math.cos(t.aim) * 16,
+      y: t.y + Math.sin(t.aim) * 16,
+      life: 0.12,
+      max: 0.12,
+      color: t.type === 'cannon' ? '#ffd08a' : t.type === 'frost' ? '#bff3ff' : '#cdb8ff',
+    });
     if (t.type === 'frost') {
       damage(target, towerStat(t, 'dmg'));
       target.slowFactor = 1 - def.slow;
@@ -339,14 +353,15 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
       while (queue.length && queue[0].frame <= frame) {
         const entry = queue.shift();
         const def = ENEMIES[entry.type];
+        const mul = (WAVES[waveIndex] && WAVES[waveIndex].hpMul) || 1;
         const p = posAt(0);
         enemies.push({
           type: entry.type,
           x: p.x,
           y: p.y,
           dist: 0,
-          hp: def.hp,
-          maxHp: def.hp,
+          hp: def.hp * mul,
+          maxHp: def.hp * mul,
           speed: def.speed,
           armor: def.armor,
           gold: def.gold,
@@ -436,6 +451,12 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
       }
     }
     effects = effects.filter((f) => f.life > 0);
+
+    for (const f of floaters) {
+      f.life -= dt;
+      f.y -= dt * 22;
+    }
+    floaters = floaters.filter((f) => f.life > 0);
 
     if (phase === 'wave' && queue.length === 0 && enemies.length === 0) finishWave();
   }
@@ -584,29 +605,53 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
 
   function drawBase() {
     const hp = Math.max(0, lives) / START_LIVES;
-    const w = 44;
-    const h = 44;
+    const w = 46;
+    const h = 46;
     const x = base.x - w / 2;
     const y = base.y - h / 2;
+
+    ctx.fillStyle = 'rgba(80, 60, 110, 0.18)';
+    ctx.beginPath();
+    ctx.ellipse(base.x, base.y + h / 2, w * 0.55, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.save();
     ctx.shadowColor = 'rgba(120, 90, 190, 0.5)';
     ctx.shadowBlur = 14;
-    rr(x, y + 8, w, h - 8, 9);
+    rr(x, y + 6, w, h - 6, 8);
     const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, '#b79bf0');
+    g.addColorStop(0, '#c3a8f5');
     g.addColorStop(1, '#7f5fd0');
     ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
-    ctx.fillStyle = '#9d82c9';
-    for (let i = 0; i < 4; i++) rr(x + 4 + i * 10, y + 2, 6, 10, 2), ctx.fill();
 
-    ctx.fillStyle = 'rgba(60, 40, 100, 0.8)';
-    rr(base.x - 7, base.y - 4, 14, 16, 4);
+    ctx.fillStyle = '#9d82c9';
+    for (let i = 0; i < 4; i++) {
+      rr(x + 3 + i * 11, y - 2, 8, 12, 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(60, 40, 100, 0.85)';
+    rr(base.x - 8, base.y + 2, 16, 18, 5);
     ctx.fill();
 
     ctx.fillStyle = '#fff';
-    star(base.x, base.y - 4, 7, 3, 5);
+    star(base.x, base.y - 6, 7, 3, 5);
+    ctx.fill();
+
+    ctx.strokeStyle = '#6a4fb0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(base.x + 14, y + 4);
+    ctx.lineTo(base.x + 14, y - 14);
+    ctx.stroke();
+    ctx.fillStyle = '#ff7aa8';
+    ctx.beginPath();
+    ctx.moveTo(base.x + 14, y - 14);
+    ctx.lineTo(base.x + 28, y - 9);
+    ctx.lineTo(base.x + 14, y - 4);
+    ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
@@ -835,6 +880,11 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
         ctx.beginPath();
         ctx.arc(f.x, f.y, 2.6 * k + 0.6, 0, Math.PI * 2);
         ctx.fill();
+      } else if (f.kind === 'flash') {
+        ctx.fillStyle = f.color;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 6 * k + 2, 0, Math.PI * 2);
+        ctx.fill();
       } else if (f.kind === 'ring' || f.kind === 'poof') {
         ctx.strokeStyle = f.color;
         ctx.lineWidth = f.kind === 'poof' ? 3 : 2.5;
@@ -842,6 +892,19 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
         ctx.arc(f.x, f.y, f.r * (1.3 - k), 0, Math.PI * 2);
         ctx.stroke();
       }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFloaters() {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = "bold 13px 'Nunito', sans-serif";
+    for (const f of floaters) {
+      const k = f.life / f.max;
+      ctx.globalAlpha = Math.min(1, k * 1.7);
+      ctx.fillStyle = '#b8860b';
+      ctx.fillText(f.text, f.x, f.y);
     }
     ctx.globalAlpha = 1;
   }
@@ -1014,6 +1077,7 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
     drawEnemies();
     drawShots();
     drawEffects();
+    drawFloaters();
 
     ctx.restore();
 
