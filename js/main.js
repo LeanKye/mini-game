@@ -1,5 +1,6 @@
 import { CONFIG } from './config.js';
 import { createPlatformer } from './game/platformer.js';
+import { createDefense } from './game/defense.js';
 import { getReward } from './rewards.js';
 
 const screens = {
@@ -20,10 +21,12 @@ const el = {
   hudTitle: document.getElementById('hud-title'),
   hudCollected: document.getElementById('hud-collected'),
   hudTotal: document.getElementById('hud-total'),
+  hudStars: document.getElementById('hud-stars'),
   hudTimer: document.getElementById('hud-timer'),
   gameHint: document.getElementById('game-hint'),
   back: document.getElementById('btn-back'),
   canvas: document.getElementById('game-canvas'),
+  controlsBox: document.getElementById('controls'),
   controls: {
     left: document.getElementById('pad-left'),
     right: document.getElementById('pad-right'),
@@ -80,29 +83,45 @@ function fillWelcome() {
 }
 
 function startGame(levelId = currentLevelId) {
-  currentLevelId = levelId;
+  const levels = CONFIG.levels || [];
+  const level = levels.find((l) => l.id === levelId) || levels[0];
+  currentLevelId = level.id;
+
   showScreen('game');
   if (game) game.destroy();
+  game = null;
 
+  const isPlatformer = level.id === 'level1';
+  if (el.hudStars) el.hudStars.classList.toggle('hidden', !isPlatformer);
+  if (el.controlsBox) el.controlsBox.classList.toggle('hidden', !isPlatformer);
+  el.hudTitle.textContent = level.name || CONFIG.gameTitle;
   el.hudCollected.textContent = '0';
   el.hudTotal.textContent = '0';
   hideGameHint();
-  updateTimer(CONFIG.timeLimitSec || 0);
 
-  game = createPlatformer(el.canvas, {
-    controls: el.controls,
-    timeLimit: CONFIG.timeLimitSec || 0,
-    onProgress: (collected, total) => {
-      el.hudCollected.textContent = String(collected);
-      el.hudTotal.textContent = String(total);
-    },
-    onHint: showGameHint,
-    onTime: updateTimer,
-    onWin: handleWin,
-  });
-  game.start();
-  const state = game.getState();
-  el.hudTotal.textContent = String(state.total);
+  if (isPlatformer) {
+    updateTimer(CONFIG.timeLimitSec || 0);
+    game = createPlatformer(el.canvas, {
+      controls: el.controls,
+      timeLimit: CONFIG.timeLimitSec || 0,
+      onProgress: (collected, total) => {
+        el.hudCollected.textContent = String(collected);
+        el.hudTotal.textContent = String(total);
+      },
+      onHint: showGameHint,
+      onTime: updateTimer,
+      onWin: handleWin,
+    });
+    game.start();
+    el.hudTotal.textContent = String(game.getState().total);
+  } else {
+    updateTimer(0);
+    game = createDefense(el.canvas, {
+      onHint: showGameHint,
+      onWin: handleWin,
+    });
+    game.start();
+  }
 }
 
 function handleWin() {
@@ -143,13 +162,22 @@ function updateTimer(seconds) {
 }
 
 async function revealReward() {
+  const level = (CONFIG.levels || []).find((l) => l.id === currentLevelId);
+  const gameId = level?.gameId || CONFIG.gameId;
+
   el.rewardStory.innerHTML = `<p class="reward__loading">${CONFIG.loadingText}</p>`;
+  el.rewardEyebrow.textContent = CONFIG.winEyebrow;
+  el.rewardTitle.textContent = CONFIG.winTitle;
   el.codeBlock.classList.add('hidden');
   el.bonus.textContent = '';
 
   try {
-    const reward = await getReward(CONFIG.gameId);
-    if (!reward) throw new Error('no reward for ' + CONFIG.gameId);
+    const reward = await getReward(gameId);
+    if (!reward) {
+      typeStory(el.rewardStory, [CONFIG.rewardSoon]);
+      el.bonus.textContent = CONFIG.bonusFallback;
+      return;
+    }
 
     el.rewardTitle.textContent = reward.title || CONFIG.winTitle;
     typeStory(el.rewardStory, reward.story || []);
@@ -436,11 +464,13 @@ function init() {
   if (window.__ENABLE_TEST_HOOKS === true) {
     window.__secureOsTest = {
       start: () => startGame('level1'),
+      startLevel: (id) => startGame(id),
       openLobby: () => openLobby(),
       lobby: () => ({ index: lobbyState.index, step: lobbyState.step }),
       goTo: (i) => goToLobby(i),
       forceWin: () => game && game.win(),
       state: () => (game ? game.getState() : null),
+      defense: () => (game && game.test ? game.test : null),
       payload: () => getReward(CONFIG.gameId),
     };
   }

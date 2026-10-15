@@ -79,8 +79,8 @@ async function main() {
     const levelCards = await page.locator('.level-card').count();
     if (levelCards !== 2) throw new Error(`Лобби: ожидалось 2 уровня, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
-    if (lockedCards !== 1) throw new Error('Лобби: нет закрытого уровня');
-    results.push('✓ Лобби: 2 уровня, второй закрыт');
+    if (lockedCards !== 0) throw new Error('Лобби: оба уровня должны быть открыты');
+    results.push('✓ Лобби: 2 уровня, оба открыты');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -160,6 +160,22 @@ async function main() {
       .evaluate((el) => el.classList.contains('is-copied'));
     if (!hasCopyFeedback) throw new Error('Нет визуального фидбека копирования');
     results.push('✓ Копирование не портит код и даёт фидбек');
+
+    await page.evaluate(() => window.__secureOsTest.startLevel('level2'));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    const towerState = await page.evaluate(() => {
+      const d = window.__secureOsTest.defense();
+      if (!d) return null;
+      const a = d.place(3, 1, 'gun');
+      const b = d.place(4, 1, 'gun');
+      d.startWave();
+      return { a, b, towers: d.towers().length, phase: d.state().phase };
+    });
+    if (!towerState || towerState.towers !== 2) {
+      throw new Error(`TD: башни не ставятся (${JSON.stringify(towerState)})`);
+    }
+    if (towerState.phase !== 'wave') throw new Error('TD: волна не запускается');
+    results.push('✓ Уровень 2 (tower defense): башни и волны работают');
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;

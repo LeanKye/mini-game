@@ -27,8 +27,8 @@ export const CONFIG = {
   lobbyReturnLabel: 'К уровням',
   lockedHint: 'Этот уровень ещё не готов',
   levels: [
-    { id: 'level1', name: 'Звёздная тропинка', subtitle: 'Уровень 1', unlocked: true },
-    { id: 'level2', name: 'Скоро', subtitle: 'Уровень 2', unlocked: false },
+    { id: 'level1', name: 'Звёздная тропинка', subtitle: 'Уровень 1 · платформер', unlocked: true, gameId: 'game1' },
+    { id: 'level2', name: 'Оборона', subtitle: 'Уровень 2 · tower defense', unlocked: true, gameId: 'game2' },
   ],
 
   // ── Экран награды ───────────────────────────────────────
@@ -40,6 +40,7 @@ export const CONFIG = {
   codeHint: 'Отправь мне этот код - и я расскажу следующую историю.',
   bonusFallback: 'Дальше - больше.',
   rewardUnavailable: 'Награда временно недоступна. Попробуй открыть её ещё раз.',
+  rewardSoon: 'История для этого уровня скоро появится.',
   replayLabel: 'Пройти заново',
 
   // ── Техническое (менять только при необходимости) ───────
