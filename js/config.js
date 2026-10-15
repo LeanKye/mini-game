@@ -27,9 +27,33 @@ export const CONFIG = {
   lobbyReturnLabel: 'К уровням',
   lockedHint: 'Этот уровень ещё не готов',
   levels: [
-    { id: 'level1', name: 'Звёздная тропинка', subtitle: 'Уровень 1 · платформер', unlocked: true, gameId: 'game1' },
-    { id: 'level2', name: 'Оборона', subtitle: 'Уровень 2 · tower defense', unlocked: true, gameId: 'game2', puzzle: true, skippable: true },
+    {
+      id: 'level1',
+      name: 'Звёздная тропинка',
+      subtitle: 'Уровень 1 · платформер',
+      unlocked: true,
+      gameId: 'game1',
+      intro:
+        'Собери все звёзды, не задень шипы и доберись до большой звезды в конце. ' +
+        'Управление: ◀ и ▶ чтобы идти, кнопка справа - прыжок. На всё - 90 секунд.',
+    },
+    {
+      id: 'level2',
+      name: 'Оборона',
+      subtitle: 'Уровень 2 · tower defense',
+      unlocked: true,
+      gameId: 'game2',
+      puzzle: true,
+      skippable: true,
+      intro:
+        'Ставь башни тапом по свободной клетке и улучшай их. Отбей 6 волн и не дай врагам ' +
+        'дойти до замка. Внизу есть ускорение ×2 и кнопка «Пропустить», если что.',
+    },
   ],
+
+  // ── Плашка «как играть» перед уровнем ───────────────────
+  introEyebrow: 'как играть',
+  introStartLabel: 'Играть',
 
   // ── Паззл с кодом (для уровней с puzzle: true) ──────────
   puzzleLabel: 'Повтори порядок',

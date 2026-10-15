@@ -4,20 +4,12 @@ import { createDefense } from './game/defense.js';
 import { getReward } from './rewards.js';
 
 const screens = {
-  welcome: document.getElementById('screen-welcome'),
   lobby: document.getElementById('screen-lobby'),
   game: document.getElementById('screen-game'),
   reward: document.getElementById('screen-reward'),
 };
 
 const el = {
-  greeting: document.getElementById('welcome-greeting'),
-  name: document.getElementById('welcome-name'),
-  eyebrow: document.getElementById('welcome-eyebrow'),
-  subtitle: document.getElementById('welcome-subtitle'),
-  intro: document.getElementById('welcome-intro'),
-  start: document.getElementById('btn-start'),
-  hint: document.getElementById('welcome-hint'),
   hudTitle: document.getElementById('hud-title'),
   hudCollected: document.getElementById('hud-collected'),
   hudTotal: document.getElementById('hud-total'),
@@ -26,6 +18,11 @@ const el = {
   gameHint: document.getElementById('game-hint'),
   back: document.getElementById('btn-back'),
   skip: document.getElementById('btn-skip'),
+  intro: document.getElementById('game-intro'),
+  introEyebrow: document.getElementById('intro-eyebrow'),
+  introTitle: document.getElementById('intro-title'),
+  introText: document.getElementById('intro-text'),
+  introBtn: document.getElementById('btn-intro'),
   canvas: document.getElementById('game-canvas'),
   controlsBox: document.getElementById('controls'),
   controls: {
@@ -67,15 +64,7 @@ function showScreen(active) {
   }
 }
 
-function fillWelcome() {
-  const name = CONFIG.herName?.trim();
-  el.eyebrow.textContent = CONFIG.eyebrow;
-  el.greeting.textContent = name ? `${CONFIG.welcomeGreeting},` : `${CONFIG.welcomeGreeting}!`;
-  el.name.textContent = name ? ` ${name}` : '';
-  el.subtitle.textContent = CONFIG.subtitle;
-  el.intro.textContent = CONFIG.intro;
-  el.start.textContent = CONFIG.startLabel;
-  el.hint.textContent = CONFIG.controlsHint;
+function fillStatic() {
   el.lobbyEyebrow.textContent = CONFIG.lobbyEyebrow;
   el.lobbyHint.textContent = CONFIG.lobbyHint;
   el.lobby.textContent = CONFIG.lobbyReturnLabel;
@@ -86,10 +75,12 @@ function fillWelcome() {
   el.codeHint.textContent = CONFIG.codeHint;
   el.replay.textContent = CONFIG.replayLabel;
   el.skip.textContent = CONFIG.skipLabel;
+  el.introEyebrow.textContent = CONFIG.introEyebrow;
+  el.introBtn.textContent = CONFIG.introStartLabel;
   document.title = CONFIG.gameTitle;
 }
 
-function startGame(levelId = currentLevelId) {
+function startGame(levelId = currentLevelId, withIntro = true) {
   const levels = CONFIG.levels || [];
   const level = levels.find((l) => l.id === levelId) || levels[0];
   currentLevelId = level.id;
@@ -120,7 +111,6 @@ function startGame(levelId = currentLevelId) {
       onTime: updateTimer,
       onWin: handleWin,
     });
-    game.start();
     el.hudTotal.textContent = String(game.getState().total);
   } else {
     updateTimer(0);
@@ -128,8 +118,25 @@ function startGame(levelId = currentLevelId) {
       onHint: showGameHint,
       onWin: handleWin,
     });
-    game.start();
   }
+
+  if (withIntro) showIntro(level);
+  else if (game) game.start();
+}
+
+function showIntro(level) {
+  if (!el.intro) {
+    if (game) game.start();
+    return;
+  }
+  el.introTitle.textContent = level.name || CONFIG.gameTitle;
+  el.introText.textContent = level.intro || '';
+  el.intro.classList.remove('hidden');
+}
+
+function dismissIntro() {
+  if (el.intro) el.intro.classList.add('hidden');
+  if (game) game.start();
 }
 
 function handleWin() {
@@ -547,15 +554,16 @@ function activateLobbyCard(index) {
 }
 
 function init() {
-  fillWelcome();
+  fillStatic();
   fillBackgroundDeco();
   buildLevelCards();
+  openLobby(false);
 
-  el.start.addEventListener('click', () => openLobby());
   el.back.addEventListener('click', () => openLobby());
   el.lobby.addEventListener('click', () => openLobby());
-  el.replay.addEventListener('click', () => startGame(currentLevelId));
+  el.replay.addEventListener('click', () => startGame(currentLevelId, false));
   el.skip.addEventListener('click', skipLevel);
+  el.introBtn.addEventListener('click', dismissIntro);
   el.code.addEventListener('click', copyCode);
 
   el.levels.addEventListener('pointerdown', onLobbyDown);
@@ -596,8 +604,8 @@ function init() {
 
   if (window.__ENABLE_TEST_HOOKS === true) {
     window.__secureOsTest = {
-      start: () => startGame('level1'),
-      startLevel: (id) => startGame(id),
+      start: () => startGame('level1', false),
+      startLevel: (id) => startGame(id, false),
       openLobby: () => openLobby(),
       lobby: () => ({ index: lobbyState.index, step: lobbyState.step }),
       goTo: (i) => goToLobby(i),

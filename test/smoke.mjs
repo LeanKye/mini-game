@@ -72,13 +72,9 @@ async function main() {
       route.request().url().includes('127.0.0.1') ? route.continue() : route.abort()
     );
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#screen-welcome:not(.hidden)');
-    const welcomeGreeting = await page.textContent('#welcome-greeting');
-    if (!welcomeGreeting?.trim()) throw new Error('Приветствие не заполнено');
-    results.push('✓ Экран приветствия загружается');
-
-    await page.click('#btn-start');
     await page.waitForSelector('#screen-lobby:not(.hidden)');
+    results.push('✓ Сайт открывается сразу на лобби');
+
     const levelCards = await page.locator('.level-card').count();
     if (levelCards !== 2) throw new Error(`Лобби: ожидалось 2 уровня, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
@@ -94,6 +90,10 @@ async function main() {
     results.push('✓ Лобби: переключение уровней');
 
     await page.click('.level-card.is-active');
+    await page.waitForSelector('#game-intro:not(.hidden)');
+    results.push('✓ Перед уровнем показывается объяснение «как играть»');
+    await page.click('#btn-intro');
+    await page.waitForFunction(() => document.getElementById('game-intro').classList.contains('hidden'));
     await page.waitForSelector('#screen-game:not(.hidden)');
     await page.waitForSelector('#game-canvas');
     results.push('✓ Переход в игру, канвас на месте');

@@ -146,6 +146,8 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
   let selectedTower = null;
   let hotspots = [];
   let scale = 1;
+  let offX = 0;
+  let offY = 0;
   let shake = 0;
 
   function posAt(d) {
@@ -486,9 +488,12 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
   function setScale() {
     const rect = canvas.getBoundingClientRect();
     const cssW = rect.width || VIEW.w;
+    const cssH = rect.height || (cssW * VIEW.h / VIEW.w);
     canvas.width = Math.round(cssW * 2);
-    canvas.height = Math.round(cssW * 2 * (VIEW.h / VIEW.w));
-    scale = canvas.width / VIEW.w;
+    canvas.height = Math.round(cssH * 2);
+    scale = Math.min(canvas.width / VIEW.w, canvas.height / VIEW.h);
+    offX = (canvas.width - VIEW.w * scale) / 2;
+    offY = (canvas.height - VIEW.h * scale) / 2;
   }
 
   function rr(x, y, w, h, r) {
@@ -1056,7 +1061,10 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
   }
 
   function render() {
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#e7f0e0';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(scale, 0, 0, scale, offX, offY);
     ctx.clearRect(0, 0, VIEW.w, VIEW.h);
     hotspots = [];
 
@@ -1148,9 +1156,9 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
   function onPointerDown(e) {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * VIEW.w;
-    const y = ((e.clientY - rect.top) / rect.height) * VIEW.h;
-    handleTap(x, y);
+    const px = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const py = (e.clientY - rect.top) * (canvas.height / rect.height);
+    handleTap((px - offX) / scale, (py - offY) / scale);
   }
 
   function onResize() {
@@ -1158,7 +1166,6 @@ export function createDefense(canvas, { onHint, onWin } = {}) {
     render();
   }
 
-  canvas.style.aspectRatio = `${VIEW.w} / ${VIEW.h}`;
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('resize', onResize);

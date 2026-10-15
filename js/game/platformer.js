@@ -97,6 +97,7 @@ export function createPlatformer(
   let running = false;
   let finished = false;
   let scale = 1;
+  let viewW = VIEW.w;
   let camX = 0;
   let raf = null;
   let last = 0;
@@ -172,9 +173,11 @@ export function createPlatformer(
   function setScale() {
     const rect = canvas.getBoundingClientRect();
     const cssW = rect.width || VIEW.w;
+    const cssH = rect.height || (cssW * VIEW.h / VIEW.w);
     canvas.width = Math.round(cssW * 2);
-    canvas.height = Math.round(cssW * 2 * (VIEW.h / VIEW.w));
-    scale = canvas.width / VIEW.w;
+    canvas.height = Math.round(cssH * 2);
+    viewW = Math.max(VIEW.w, Math.round(VIEW.h * (canvas.width / canvas.height)));
+    scale = canvas.width / viewW;
   }
 
   function onResize() {
@@ -270,7 +273,7 @@ export function createPlatformer(
     timeLeft = timeLimit * 60;
     lastShownSecond = -1;
     hurtFlash = 26;
-    camX = Math.max(0, Math.min(player.x - VIEW.w / 2, WORLD.w - VIEW.w));
+    camX = Math.max(0, Math.min(player.x - viewW / 2, Math.max(0, WORLD.w - viewW)));
     if (onProgress) onProgress(0, stars.length, null);
     if (message) hint(message);
   }
@@ -282,7 +285,7 @@ export function createPlatformer(
     player.vy = 0;
     player.platform = null;
     hurtFlash = 22;
-    camX = Math.max(0, Math.min(player.x - VIEW.w / 2, WORLD.w - VIEW.w));
+    camX = Math.max(0, Math.min(player.x - viewW / 2, Math.max(0, WORLD.w - viewW)));
   }
 
   function updateCheckpoint() {
@@ -409,7 +412,7 @@ export function createPlatformer(
       }
     }
 
-    camX = Math.max(0, Math.min(player.x + player.w / 2 - VIEW.w / 2, WORLD.w - VIEW.w));
+    camX = Math.max(0, Math.min(player.x + player.w / 2 - viewW / 2, Math.max(0, WORLD.w - viewW)));
   }
 
   function win() {
@@ -475,9 +478,9 @@ export function createPlatformer(
 
   function drawSky() {
     ctx.fillStyle = gfx.sky;
-    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+    ctx.fillRect(0, 0, viewW, VIEW.h);
     ctx.fillStyle = gfx.glow;
-    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+    ctx.fillRect(0, 0, viewW, VIEW.h);
   }
 
   function drawClouds() {
@@ -500,12 +503,12 @@ export function createPlatformer(
       ctx.fillStyle = L.color;
       ctx.beginPath();
       ctx.moveTo(-100, VIEW.h);
-      for (let x = -100; x <= VIEW.w + 100; x += 40) {
+      for (let x = -100; x <= viewW + 100; x += 40) {
         const world = x + off;
         const y = L.y - Math.sin(world / 180) * L.amp - Math.cos(world / 90) * 8;
         ctx.lineTo(x, y);
       }
-      ctx.lineTo(VIEW.w + 100, VIEW.h);
+      ctx.lineTo(viewW + 100, VIEW.h);
       ctx.closePath();
       ctx.fill();
     }
@@ -682,7 +685,7 @@ export function createPlatformer(
 
   function render() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.clearRect(0, 0, VIEW.w, VIEW.h);
+    ctx.clearRect(0, 0, viewW, VIEW.h);
     drawSky();
     drawClouds();
     drawHills();
@@ -702,11 +705,11 @@ export function createPlatformer(
     ctx.restore();
 
     ctx.fillStyle = gfx.vignette;
-    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+    ctx.fillRect(0, 0, viewW, VIEW.h);
 
     if (hurtFlash > 0) {
       ctx.fillStyle = `rgba(200, 70, 110, ${(hurtFlash / 44).toFixed(3)})`;
-      ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+      ctx.fillRect(0, 0, viewW, VIEW.h);
     }
   }
 
