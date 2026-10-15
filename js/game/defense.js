@@ -57,12 +57,12 @@ const WAVES = [
     reward: 22,
   },
   {
-    hpMul: 2.4,
+    hpMul: 2.0,
     groups: [
       { type: 'boss', count: 1, gap: 0, delay: 0 },
-      { type: 'tank', count: 8, gap: 46, delay: 160 },
-      { type: 'runner', count: 20, gap: 14, delay: 380 },
-      { type: 'grunt', count: 20, gap: 18, delay: 560 },
+      { type: 'tank', count: 7, gap: 50, delay: 160 },
+      { type: 'runner', count: 16, gap: 16, delay: 380 },
+      { type: 'grunt', count: 16, gap: 20, delay: 560 },
     ],
     reward: 30,
   },
