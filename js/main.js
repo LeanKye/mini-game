@@ -166,101 +166,80 @@ function updateTimer(seconds) {
   el.hudTimer.classList.toggle('low', seconds <= 15);
 }
 
-function starShape(g, cx0, cy0, outer, inner) {
-  g.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const r = i % 2 === 0 ? outer : inner;
-    const px = cx0 + Math.cos(a) * r;
-    const py = cy0 + Math.sin(a) * r;
-    if (i === 0) g.moveTo(px, py);
-    else g.lineTo(px, py);
-  }
-  g.closePath();
+const PUZZLE_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+
+function clearPuzzleTimers() {
+  if (puzzle) puzzle.timers.forEach((t) => clearTimeout(t));
+  if (puzzle) puzzle.timers = [];
 }
 
-function makeCodeImage(code) {
-  const c = document.createElement('canvas');
-  c.width = 300;
-  c.height = 300;
-  const g = c.getContext('2d');
-
-  const grad = g.createLinearGradient(0, 0, 300, 300);
-  grad.addColorStop(0, '#ffd9e8');
-  grad.addColorStop(1, '#b79bf0');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 300, 300);
-
-  g.fillStyle = 'rgba(255, 255, 255, 0.22)';
-  g.beginPath();
-  g.arc(70, 64, 74, 0, Math.PI * 2);
-  g.fill();
-  g.beginPath();
-  g.arc(250, 244, 92, 0, Math.PI * 2);
-  g.fill();
-
-  g.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  for (const s of [[46, 244, 11], [258, 52, 13], [150, 44, 8], [246, 150, 9], [58, 120, 7]]) {
-    starShape(g, s[0], s[1], s[2], s[2] * 0.45);
-    g.fill();
-  }
-
-  g.fillStyle = 'rgba(91, 51, 72, 0.95)';
-  g.font = "bold 96px 'Playfair Display', Georgia, serif";
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(code, 150, 154);
-  return c;
+function puzzleLight(digit, on) {
+  const tile = el.puzzleBoard.querySelector(`[data-digit="${digit}"]`);
+  if (tile) tile.classList.toggle('is-lit', on);
 }
 
-function puzzleNeighbors(slot, size) {
-  const c = slot % size;
-  const r = Math.floor(slot / size);
-  const out = [];
-  if (c > 0) out.push(slot - 1);
-  if (c < size - 1) out.push(slot + 1);
-  if (r > 0) out.push(slot - size);
-  if (r < size - 1) out.push(slot + size);
-  return out;
-}
-
-function puzzleIsSolved() {
-  return !!puzzle && puzzle.order.every((v, i) => v === i);
+function puzzleRenderHint(prefix) {
+  const dots = puzzle.digits.map((_, i) => (i < puzzle.input.length ? '●' : '○')).join(' ');
+  el.puzzleHint.textContent = `${prefix} ${dots}`;
 }
 
 function renderPuzzle() {
-  const { size, order, url } = puzzle;
   el.puzzleBoard.innerHTML = '';
-  const blankValue = size * size - 1;
-  for (let slot = 0; slot < size * size; slot++) {
-    const value = order[slot];
+  for (const d of PUZZLE_KEYS) {
     const tile = document.createElement('button');
     tile.type = 'button';
-    if (value === blankValue) {
-      tile.className = 'puzzle__tile puzzle__tile--blank';
-      tile.disabled = true;
-    } else {
-      tile.className = 'puzzle__tile';
-      tile.style.backgroundImage = `url(${url})`;
-      const col = value % size;
-      const row = Math.floor(value / size);
-      tile.style.backgroundPosition = `${(col / (size - 1)) * 100}% ${(row / (size - 1)) * 100}%`;
-      tile.addEventListener('click', () => onPuzzleTap(slot));
-    }
+    tile.className = 'puzzle__tile';
+    tile.dataset.digit = String(d);
+    tile.textContent = String(d);
+    tile.addEventListener('click', () => onPuzzleTap(d));
     el.puzzleBoard.appendChild(tile);
   }
 }
 
-function onPuzzleTap(slot) {
+function playPuzzleSequence() {
   if (!puzzle || puzzle.solved) return;
-  const { size, order } = puzzle;
-  const blank = puzzle.blank;
-  if (!puzzleNeighbors(slot, size).includes(blank)) return;
-  order[blank] = order[slot];
-  order[slot] = size * size - 1;
-  puzzle.blank = slot;
-  renderPuzzle();
-  if (puzzleIsSolved()) solvePuzzle();
+  clearPuzzleTimers();
+  puzzle.busy = true;
+  puzzle.input = [];
+  el.puzzleHint.textContent = 'Запомни порядок...';
+  const step = 650;
+  const start = 500;
+  puzzle.digits.forEach((d, i) => {
+    puzzle.timers.push(setTimeout(() => puzzleLight(d, true), start + i * step));
+    puzzle.timers.push(setTimeout(() => puzzleLight(d, false), start + i * step + 420));
+  });
+  puzzle.timers.push(
+    setTimeout(() => {
+      if (!puzzle || puzzle.solved) return;
+      puzzle.busy = false;
+      puzzleRenderHint('Твой ход:');
+    }, start + puzzle.digits.length * step)
+  );
+}
+
+function onPuzzleTap(digit) {
+  if (!puzzle || puzzle.busy || puzzle.solved) return;
+  const k = puzzle.input.length;
+  if (puzzle.digits[k] !== digit) {
+    puzzle.busy = true;
+    el.puzzleHint.textContent = 'Не то. Смотри ещё раз';
+    el.puzzleBoard.classList.add('is-wrong');
+    puzzle.timers.push(
+      setTimeout(() => {
+        el.puzzleBoard.classList.remove('is-wrong');
+        playPuzzleSequence();
+      }, 700)
+    );
+    return;
+  }
+  puzzle.input.push(digit);
+  puzzleLight(digit, true);
+  puzzle.timers.push(setTimeout(() => puzzleLight(digit, false), 220));
+  if (puzzle.input.length === puzzle.digits.length) {
+    solvePuzzle();
+    return;
+  }
+  puzzleRenderHint('Твой ход:');
 }
 
 function revealCode(code) {
@@ -272,34 +251,27 @@ function revealCode(code) {
 }
 
 function showPuzzle(code) {
-  const size = 3;
-  const order = [];
-  for (let i = 0; i < size * size; i++) order.push(i);
-  let blank = size * size - 1;
-  for (let i = 0; i < 60; i++) {
-    const nb = puzzleNeighbors(blank, size);
-    const pick = nb[(Math.random() * nb.length) | 0];
-    order[blank] = order[pick];
-    order[pick] = size * size - 1;
-    blank = pick;
-  }
-  if (order.every((v, i) => v === i)) return showPuzzle(code);
-  puzzle = { size, order, blank, code, url: makeCodeImage(code).toDataURL(), solved: false };
+  clearPuzzleTimers();
+  puzzle = {
+    code,
+    digits: code.split('').map(Number),
+    input: [],
+    busy: false,
+    solved: false,
+    timers: [],
+  };
   el.puzzleLabel.textContent = CONFIG.puzzleLabel;
-  el.puzzleHint.textContent = CONFIG.puzzleHint;
   el.puzzleBlock.classList.remove('hidden');
   el.codeBlock.classList.add('hidden');
   renderPuzzle();
+  playPuzzleSequence();
 }
 
 function solvePuzzle() {
-  if (!puzzle) return false;
-  const { size, code } = puzzle;
-  for (let i = 0; i < size * size; i++) puzzle.order[i] = i;
-  puzzle.blank = size * size - 1;
+  if (!puzzle || puzzle.solved) return false;
   puzzle.solved = true;
-  renderPuzzle();
-  revealCode(code);
+  clearPuzzleTimers();
+  revealCode(puzzle.code);
   return true;
 }
 
@@ -619,7 +591,7 @@ function init() {
       state: () => (game ? game.getState() : null),
       defense: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
-      puzzle: () => (puzzle ? { size: puzzle.size, solved: puzzle.solved } : null),
+      puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),
     };
   }

@@ -585,3 +585,41 @@ body {
   color: var(--ink-soft);
   text-align: center;
 }
+
+/* ── Игра «повтори порядок» вместо пятнашек ─────────────── */
+.puzzle {
+  aspect-ratio: auto;
+  width: min(80vw, 300px);
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  gap: 8px;
+}
+
+.puzzle__tile {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #ffffff, #ecdfff);
+  color: #5b3348;
+  font: 800 1.4rem 'Nunito', sans-serif;
+  border-radius: 14px;
+  box-shadow: 0 6px 14px -8px rgba(120, 90, 160, 0.7);
+  transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.puzzle__tile.is-lit {
+  background: linear-gradient(160deg, #ff9dc0, #ff6ea0);
+  color: #fff;
+  transform: scale(1.08);
+}
+
+.puzzle.is-wrong { animation: puzzleShake 0.4s ease; }
+
+@keyframes puzzleShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.puzzle__tile[data-digit="0"] { grid-column: 2; }
