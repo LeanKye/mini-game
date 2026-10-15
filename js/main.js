@@ -25,6 +25,7 @@ const el = {
   hudTimer: document.getElementById('hud-timer'),
   gameHint: document.getElementById('game-hint'),
   back: document.getElementById('btn-back'),
+  skip: document.getElementById('btn-skip'),
   canvas: document.getElementById('game-canvas'),
   controlsBox: document.getElementById('controls'),
   controls: {
@@ -84,6 +85,7 @@ function fillWelcome() {
   el.codeLabel.textContent = CONFIG.codeLabel;
   el.codeHint.textContent = CONFIG.codeHint;
   el.replay.textContent = CONFIG.replayLabel;
+  el.skip.textContent = CONFIG.skipLabel;
   document.title = CONFIG.gameTitle;
 }
 
@@ -99,6 +101,7 @@ function startGame(levelId = currentLevelId) {
   const isPlatformer = level.id === 'level1';
   if (el.hudStars) el.hudStars.classList.toggle('hidden', !isPlatformer);
   if (el.controlsBox) el.controlsBox.classList.toggle('hidden', !isPlatformer);
+  if (el.skip) el.skip.classList.toggle('hidden', !level.skippable);
   el.hudTitle.textContent = level.name || CONFIG.gameTitle;
   el.hudCollected.textContent = '0';
   el.hudTotal.textContent = '0';
@@ -135,6 +138,15 @@ function handleWin() {
     showScreen('reward');
     revealReward();
   }, reduceMotion ? 0 : 350);
+}
+
+function skipLevel() {
+  if (game) {
+    game.destroy();
+    game = null;
+  }
+  showScreen('reward');
+  revealReward({ skipPuzzle: true });
 }
 
 function showGameHint(message) {
@@ -275,9 +287,10 @@ function solvePuzzle() {
   return true;
 }
 
-async function revealReward() {
+async function revealReward(opts = {}) {
   const level = (CONFIG.levels || []).find((l) => l.id === currentLevelId);
   const gameId = level?.gameId || CONFIG.gameId;
+  const usePuzzle = !!(level && level.puzzle && !opts.skipPuzzle);
 
   el.rewardStory.innerHTML = `<p class="reward__loading">${CONFIG.loadingText}</p>`;
   el.rewardEyebrow.textContent = CONFIG.winEyebrow;
@@ -299,7 +312,7 @@ async function revealReward() {
     typeStory(el.rewardStory, reward.story || []);
 
     if (reward.code) {
-      if (level && level.puzzle) showPuzzle(reward.code);
+      if (usePuzzle) showPuzzle(reward.code);
       else {
         el.code.dataset.code = reward.code;
         el.code.textContent = reward.code;
@@ -542,6 +555,7 @@ function init() {
   el.back.addEventListener('click', () => openLobby());
   el.lobby.addEventListener('click', () => openLobby());
   el.replay.addEventListener('click', () => startGame(currentLevelId));
+  el.skip.addEventListener('click', skipLevel);
   el.code.addEventListener('click', copyCode);
 
   el.levels.addEventListener('pointerdown', onLobbyDown);

@@ -28,13 +28,14 @@ export const CONFIG = {
   lockedHint: 'Этот уровень ещё не готов',
   levels: [
     { id: 'level1', name: 'Звёздная тропинка', subtitle: 'Уровень 1 · платформер', unlocked: true, gameId: 'game1' },
-    { id: 'level2', name: 'Оборона', subtitle: 'Уровень 2 · tower defense', unlocked: true, gameId: 'game2', puzzle: true },
+    { id: 'level2', name: 'Оборона', subtitle: 'Уровень 2 · tower defense', unlocked: true, gameId: 'game2', puzzle: true, skippable: true },
   ],
 
   // ── Паззл с кодом (для уровней с puzzle: true) ──────────
   puzzleLabel: 'Повтори порядок',
   puzzleHint: 'Запомни, в каком порядке загорятся цифры',
   puzzleSolved: 'Готово! Вот твой код:',
+  skipLabel: 'Пропустить',
 
   // ── Экран награды ───────────────────────────────────────
   winEyebrow: 'уровень пройден',

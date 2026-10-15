@@ -623,3 +623,22 @@ body {
 }
 
 .puzzle__tile[data-digit="0"] { grid-column: 2; }
+
+/* ── Кнопка «Пропустить» (для уровней со skip) ──────────── */
+.hud__skip {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--pink-deep);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 122, 168, 0.45);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  box-shadow: 0 6px 16px -10px rgba(180, 90, 140, 0.7);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.hud__skip:active { transform: scale(0.95); }

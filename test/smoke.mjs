@@ -194,6 +194,19 @@ async function main() {
     const payload2 = await page.evaluate(() => window.__secureOsTest.payload('game2'));
     if (!code2 || code2 !== payload2.code) throw new Error('TD: код после паззла не совпал');
     results.push('✓ Уровень 2: код 1429 выдаётся после паззла');
+
+    await page.evaluate(() => window.__secureOsTest.startLevel('level2'));
+    await page.waitForSelector('#btn-skip:not(.hidden)');
+    await page.click('#btn-skip');
+    await page.waitForSelector('#screen-reward:not(.hidden)');
+    await page.waitForSelector('#reward-code-block:not(.hidden)');
+    const skippedCode = (await page.textContent('#reward-code'))?.trim();
+    if (skippedCode !== payload2.code) throw new Error('skip: неверный код');
+    const puzzleSkipped = await page
+      .locator('#reward-puzzle')
+      .evaluate((n) => n.classList.contains('hidden'));
+    if (!puzzleSkipped) throw new Error('skip: паззл должен быть пропущен');
+    results.push('✓ Уровень 2: «Пропустить» сразу выдаёт код');
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;
