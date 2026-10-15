@@ -40,6 +40,10 @@ const el = {
   rewardEyebrow: document.getElementById('reward-eyebrow'),
   rewardTitle: document.getElementById('reward-title'),
   rewardStory: document.getElementById('reward-story'),
+  puzzleBlock: document.getElementById('reward-puzzle'),
+  puzzleBoard: document.getElementById('puzzle-board'),
+  puzzleLabel: document.getElementById('puzzle-label'),
+  puzzleHint: document.getElementById('puzzle-hint'),
   codeBlock: document.getElementById('reward-code-block'),
   codeLabel: document.getElementById('code-label'),
   code: document.getElementById('reward-code'),
@@ -54,6 +58,7 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 let game = null;
 let currentLevelId = CONFIG.levels?.[0]?.id || 'level1';
 const lobbyState = { index: 0, step: 0, cardW: 0, viewportW: 0, dragging: false, startX: 0, moved: false };
+let puzzle = null;
 
 function showScreen(active) {
   for (const [key, node] of Object.entries(screens)) {
@@ -161,6 +166,143 @@ function updateTimer(seconds) {
   el.hudTimer.classList.toggle('low', seconds <= 15);
 }
 
+function starShape(g, cx0, cy0, outer, inner) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 === 0 ? outer : inner;
+    const px = cx0 + Math.cos(a) * r;
+    const py = cy0 + Math.sin(a) * r;
+    if (i === 0) g.moveTo(px, py);
+    else g.lineTo(px, py);
+  }
+  g.closePath();
+}
+
+function makeCodeImage(code) {
+  const c = document.createElement('canvas');
+  c.width = 300;
+  c.height = 300;
+  const g = c.getContext('2d');
+
+  const grad = g.createLinearGradient(0, 0, 300, 300);
+  grad.addColorStop(0, '#ffd9e8');
+  grad.addColorStop(1, '#b79bf0');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 300, 300);
+
+  g.fillStyle = 'rgba(255, 255, 255, 0.22)';
+  g.beginPath();
+  g.arc(70, 64, 74, 0, Math.PI * 2);
+  g.fill();
+  g.beginPath();
+  g.arc(250, 244, 92, 0, Math.PI * 2);
+  g.fill();
+
+  g.fillStyle = 'rgba(255, 255, 255, 0.85)';
+  for (const s of [[46, 244, 11], [258, 52, 13], [150, 44, 8], [246, 150, 9], [58, 120, 7]]) {
+    starShape(g, s[0], s[1], s[2], s[2] * 0.45);
+    g.fill();
+  }
+
+  g.fillStyle = 'rgba(91, 51, 72, 0.95)';
+  g.font = "bold 96px 'Playfair Display', Georgia, serif";
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(code, 150, 154);
+  return c;
+}
+
+function puzzleNeighbors(slot, size) {
+  const c = slot % size;
+  const r = Math.floor(slot / size);
+  const out = [];
+  if (c > 0) out.push(slot - 1);
+  if (c < size - 1) out.push(slot + 1);
+  if (r > 0) out.push(slot - size);
+  if (r < size - 1) out.push(slot + size);
+  return out;
+}
+
+function puzzleIsSolved() {
+  return !!puzzle && puzzle.order.every((v, i) => v === i);
+}
+
+function renderPuzzle() {
+  const { size, order, url } = puzzle;
+  el.puzzleBoard.innerHTML = '';
+  const blankValue = size * size - 1;
+  for (let slot = 0; slot < size * size; slot++) {
+    const value = order[slot];
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    if (value === blankValue) {
+      tile.className = 'puzzle__tile puzzle__tile--blank';
+      tile.disabled = true;
+    } else {
+      tile.className = 'puzzle__tile';
+      tile.style.backgroundImage = `url(${url})`;
+      const col = value % size;
+      const row = Math.floor(value / size);
+      tile.style.backgroundPosition = `${(col / (size - 1)) * 100}% ${(row / (size - 1)) * 100}%`;
+      tile.addEventListener('click', () => onPuzzleTap(slot));
+    }
+    el.puzzleBoard.appendChild(tile);
+  }
+}
+
+function onPuzzleTap(slot) {
+  if (!puzzle || puzzle.solved) return;
+  const { size, order } = puzzle;
+  const blank = puzzle.blank;
+  if (!puzzleNeighbors(slot, size).includes(blank)) return;
+  order[blank] = order[slot];
+  order[slot] = size * size - 1;
+  puzzle.blank = slot;
+  renderPuzzle();
+  if (puzzleIsSolved()) solvePuzzle();
+}
+
+function revealCode(code) {
+  el.puzzleBlock.classList.add('hidden');
+  el.puzzleHint.textContent = CONFIG.puzzleSolved;
+  el.code.dataset.code = code;
+  el.code.textContent = code;
+  el.codeBlock.classList.remove('hidden');
+}
+
+function showPuzzle(code) {
+  const size = 3;
+  const order = [];
+  for (let i = 0; i < size * size; i++) order.push(i);
+  let blank = size * size - 1;
+  for (let i = 0; i < 60; i++) {
+    const nb = puzzleNeighbors(blank, size);
+    const pick = nb[(Math.random() * nb.length) | 0];
+    order[blank] = order[pick];
+    order[pick] = size * size - 1;
+    blank = pick;
+  }
+  if (order.every((v, i) => v === i)) return showPuzzle(code);
+  puzzle = { size, order, blank, code, url: makeCodeImage(code).toDataURL(), solved: false };
+  el.puzzleLabel.textContent = CONFIG.puzzleLabel;
+  el.puzzleHint.textContent = CONFIG.puzzleHint;
+  el.puzzleBlock.classList.remove('hidden');
+  el.codeBlock.classList.add('hidden');
+  renderPuzzle();
+}
+
+function solvePuzzle() {
+  if (!puzzle) return false;
+  const { size, code } = puzzle;
+  for (let i = 0; i < size * size; i++) puzzle.order[i] = i;
+  puzzle.blank = size * size - 1;
+  puzzle.solved = true;
+  renderPuzzle();
+  revealCode(code);
+  return true;
+}
+
 async function revealReward() {
   const level = (CONFIG.levels || []).find((l) => l.id === currentLevelId);
   const gameId = level?.gameId || CONFIG.gameId;
@@ -169,6 +311,8 @@ async function revealReward() {
   el.rewardEyebrow.textContent = CONFIG.winEyebrow;
   el.rewardTitle.textContent = CONFIG.winTitle;
   el.codeBlock.classList.add('hidden');
+  el.puzzleBlock.classList.add('hidden');
+  puzzle = null;
   el.bonus.textContent = '';
 
   try {
@@ -183,9 +327,12 @@ async function revealReward() {
     typeStory(el.rewardStory, reward.story || []);
 
     if (reward.code) {
-      el.code.dataset.code = reward.code;
-      el.code.textContent = reward.code;
-      el.codeBlock.classList.remove('hidden');
+      if (level && level.puzzle) showPuzzle(reward.code);
+      else {
+        el.code.dataset.code = reward.code;
+        el.code.textContent = reward.code;
+        el.codeBlock.classList.remove('hidden');
+      }
     }
     el.bonus.textContent = reward.bonus || CONFIG.bonusFallback;
   } catch (err) {
@@ -471,7 +618,9 @@ function init() {
       forceWin: () => game && game.win(),
       state: () => (game ? game.getState() : null),
       defense: () => (game && game.test ? game.test : null),
-      payload: () => getReward(CONFIG.gameId),
+      solvePuzzle: () => solvePuzzle(),
+      puzzle: () => (puzzle ? { size: puzzle.size, solved: puzzle.solved } : null),
+      payload: (id) => getReward(id || CONFIG.gameId),
     };
   }
 }

@@ -68,6 +68,9 @@ async function main() {
     await page.addInitScript(() => {
       window.__ENABLE_TEST_HOOKS = true;
     });
+    await page.route('**/*', (route) =>
+      route.request().url().includes('127.0.0.1') ? route.continue() : route.abort()
+    );
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#screen-welcome:not(.hidden)');
     const welcomeGreeting = await page.textContent('#welcome-greeting');
@@ -176,6 +179,21 @@ async function main() {
     }
     if (towerState.phase !== 'wave') throw new Error('TD: волна не запускается');
     results.push('✓ Уровень 2 (tower defense): башни и волны работают');
+
+    await page.evaluate(() => window.__secureOsTest.forceWin());
+    await page.waitForSelector('#screen-reward:not(.hidden)');
+    await page.waitForSelector('#reward-puzzle:not(.hidden)');
+    const puzzleCodeHidden = await page
+      .locator('#reward-code-block')
+      .evaluate((n) => n.classList.contains('hidden'));
+    if (!puzzleCodeHidden) throw new Error('TD: код показан без решения паззла');
+
+    await page.evaluate(() => window.__secureOsTest.solvePuzzle());
+    await page.waitForSelector('#reward-code-block:not(.hidden)');
+    const code2 = (await page.textContent('#reward-code'))?.trim();
+    const payload2 = await page.evaluate(() => window.__secureOsTest.payload('game2'));
+    if (!code2 || code2 !== payload2.code) throw new Error('TD: код после паззла не совпал');
+    results.push('✓ Уровень 2: код 1429 выдаётся после паззла');
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;
