@@ -19,6 +19,9 @@ const el = {
   gameHint: document.getElementById('game-hint'),
   back: document.getElementById('btn-back'),
   skip: document.getElementById('btn-skip'),
+  sync: document.getElementById('hud-sync'),
+  syncMinus: document.getElementById('btn-sync-minus'),
+  syncPlus: document.getElementById('btn-sync-plus'),
   intro: document.getElementById('game-intro'),
   introEyebrow: document.getElementById('intro-eyebrow'),
   introTitle: document.getElementById('intro-title'),
@@ -96,6 +99,7 @@ function startGame(levelId = currentLevelId, withIntro = true) {
   if (el.hudStars) el.hudStars.classList.toggle('hidden', !isPlatformer);
   if (el.controlsBox) el.controlsBox.classList.toggle('hidden', !isPlatformer);
   if (el.skip) el.skip.classList.toggle('hidden', !level.skippable);
+  if (el.sync) el.sync.classList.toggle('hidden', kind !== 'rhythm');
   el.hudTitle.textContent = level.name || CONFIG.gameTitle;
   el.hudCollected.textContent = '0';
   el.hudTotal.textContent = '0';
@@ -131,6 +135,12 @@ function startGame(levelId = currentLevelId, withIntro = true) {
 
   if (withIntro) showIntro(level);
   else if (game) game.start();
+}
+
+function nudgeSync(delta) {
+  if (!game || !game.adjustOffset) return;
+  const ms = game.adjustOffset(delta);
+  showGameHint(`Синхронизация: ${ms > 0 ? '+' : ''}${ms} мс. Тапаешь раньше звука - жми +`);
 }
 
 function showIntro(level) {
@@ -573,6 +583,8 @@ function init() {
   el.lobby.addEventListener('click', () => openLobby());
   el.replay.addEventListener('click', () => startGame(currentLevelId, false));
   el.skip.addEventListener('click', skipLevel);
+  el.syncMinus.addEventListener('click', () => nudgeSync(-0.03));
+  el.syncPlus.addEventListener('click', () => nudgeSync(0.03));
   el.introBtn.addEventListener('click', dismissIntro);
   el.code.addEventListener('click', copyCode);
 

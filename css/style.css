@@ -732,3 +732,28 @@ body {
 .level-card[data-kind="defense"] { background: linear-gradient(160deg, #7fd6c8, #7a9be0); }
 .level-card[data-kind="rhythm"] { background: linear-gradient(160deg, #ff8ac2, #6a3fb0); }
 .level-card__icon { font-size: 3.2rem; }
+
+/* ── Подстройка синхронизации (ритм) ────────────────────── */
+.hud__sync {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.hud__sync button {
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  color: var(--pink-deep);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 122, 168, 0.45);
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud__sync button:active { transform: scale(0.92); }

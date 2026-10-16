@@ -141,8 +141,19 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
   function clock() {
     return perf() - pausedTotal;
   }
+  let userOffset = 0;
+  try {
+    userOffset = Number(localStorage.getItem('rhythmOffset')) || 0;
+  } catch {}
+
+  function latency() {
+    if (!ac) return userOffset;
+    const out = typeof ac.outputLatency === 'number' && ac.outputLatency > 0 ? ac.outputLatency : 0.09;
+    return out + (ac.baseLatency || 0) + userOffset;
+  }
+
   function songTime() {
-    return clock() - t0;
+    return clock() - t0 - latency();
   }
 
   function ensureAudio() {
@@ -833,6 +844,14 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
       document.removeEventListener('visibilitychange', onVisibility);
       if (resizeObserver) resizeObserver.disconnect();
     },
+    adjustOffset(delta) {
+      userOffset = Math.max(-0.2, Math.min(0.4, Math.round((userOffset + delta) * 1000) / 1000));
+      try {
+        localStorage.setItem('rhythmOffset', String(userOffset));
+      } catch {}
+      return Math.round(userOffset * 1000);
+    },
+    getOffset: () => Math.round(userOffset * 1000),
     getState() {
       return {
         score,
