@@ -757,3 +757,95 @@ body {
 }
 
 .hud__sync button:active { transform: scale(0.92); }
+
+/* ── Кодовый замок (быки и коровы) ──────────────────────── */
+.puzzle.lock {
+  display: block;
+  width: min(82vw, 320px);
+  aspect-ratio: auto;
+  grid-template-columns: none;
+}
+
+.lock__slots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.lock__slot {
+  font: 800 1.6rem 'Nunito', sans-serif;
+  color: var(--ink);
+  width: 52px;
+  height: 62px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #ffffff, #ece0ff);
+  box-shadow: 0 6px 14px -8px rgba(120, 90, 160, 0.7);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lock__slot:active { transform: scale(0.95); }
+
+.lock__ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.lock__check {
+  font: 800 0.95rem 'Nunito', sans-serif;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  background: linear-gradient(135deg, #ff9dc0, var(--pink-deep));
+  box-shadow: 0 10px 22px -12px rgba(255, 79, 139, 0.9);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lock__check:active { transform: scale(0.96); }
+
+.lock__tries { font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); }
+
+.lock__history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.lock__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.lock__guess {
+  font: 800 1.05rem 'Nunito', sans-serif;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+}
+
+.lock__dots { display: inline-flex; gap: 5px; }
+
+.lock__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.lock__dot--bull { background: #ff5f8d; }
+.lock__dot--cow { background: #ffd36b; }

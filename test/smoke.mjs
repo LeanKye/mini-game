@@ -265,6 +265,28 @@ async function main() {
     await page.evaluate(() => window.__secureOsTest.forceWin());
     await page.waitForSelector('#screen-reward:not(.hidden)');
     results.push('✓ Уровень 3: победа ведёт на экран награды');
+
+    await page.waitForSelector('#reward-puzzle:not(.hidden)');
+    const l3Hidden = await page
+      .locator('#reward-code-block')
+      .evaluate((n) => n.classList.contains('hidden'));
+    if (!l3Hidden) throw new Error('Уровень 3: код показан без решения замка');
+
+    await page.click('.lock__slot');
+    await page.click('#lock-check');
+    await page.waitForSelector('.lock__row');
+    const rows = await page.locator('.lock__row').count();
+    if (rows < 1) throw new Error('Уровень 3: попытка не попала в историю');
+    results.push('✓ Уровень 3: замок принимает попытку и даёт обратную связь');
+
+    await page.evaluate(() => window.__secureOsTest.solvePuzzle());
+    await page.waitForSelector('#reward-code-block:not(.hidden)');
+    const code3 = (await page.textContent('#reward-code'))?.trim();
+    const payload3 = await page.evaluate(() => window.__secureOsTest.payload('game3'));
+    if (code3 !== payload3.code || code3 !== '2019') {
+      throw new Error('Уровень 3: код после замка не совпал (' + code3 + ')');
+    }
+    results.push('✓ Уровень 3: код 2019 выдаётся после кодового замка');
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;

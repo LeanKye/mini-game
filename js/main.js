@@ -207,7 +207,7 @@ function updateTimer(seconds) {
 const PUZZLE_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
 
 function clearPuzzleTimers() {
-  if (puzzle) puzzle.timers.forEach((t) => clearTimeout(t));
+  if (puzzle && puzzle.timers) puzzle.timers.forEach((t) => clearTimeout(t));
   if (puzzle) puzzle.timers = [];
 }
 
@@ -280,6 +280,139 @@ function onPuzzleTap(digit) {
   puzzleRenderHint('Твой ход:');
 }
 
+function puzzleType(level) {
+  return (level && level.puzzleType) || 'sequence';
+}
+
+function showPuzzle(code) {
+  const level = (CONFIG.levels || []).find((l) => l.id === currentLevelId);
+  if (puzzleType(level) === 'lock') showLockPuzzle(code);
+  else showSequencePuzzle(code);
+}
+
+function showLockPuzzle(code) {
+  puzzle = {
+    type: 'lock',
+    code,
+    digits: code.split('').map(Number),
+    slots: [0, 0, 0, 0],
+    tries: 10,
+    history: [],
+    solved: false,
+  };
+  el.puzzleLabel.textContent = CONFIG.lockLabel;
+  el.puzzleHint.textContent = CONFIG.lockHint;
+  el.puzzleBlock.classList.remove('hidden');
+  el.codeBlock.classList.add('hidden');
+  renderLock();
+}
+
+function lockFeedback(guess, digits) {
+  const n = digits.length;
+  const usedCode = new Array(n).fill(false);
+  const usedGuess = new Array(n).fill(false);
+  let bulls = 0;
+  for (let i = 0; i < n; i++) {
+    if (guess[i] === digits[i]) {
+      bulls += 1;
+      usedCode[i] = true;
+      usedGuess[i] = true;
+    }
+  }
+  let cows = 0;
+  for (let i = 0; i < n; i++) {
+    if (usedGuess[i]) continue;
+    for (let j = 0; j < n; j++) {
+      if (usedCode[j] || digits[j] !== guess[i]) continue;
+      usedCode[j] = true;
+      cows += 1;
+      break;
+    }
+  }
+  return { bulls, cows };
+}
+
+function renderLock() {
+  const p = puzzle;
+  el.puzzleBoard.classList.add('lock');
+  el.puzzleBoard.innerHTML = '';
+
+  const slots = document.createElement('div');
+  slots.className = 'lock__slots';
+  p.slots.forEach((d, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'lock__slot';
+    b.textContent = String(d);
+    b.addEventListener('click', () => {
+      if (p.solved) return;
+      p.slots[i] = (p.slots[i] + 1) % 10;
+      renderLock();
+    });
+    slots.appendChild(b);
+  });
+
+  const ctrl = document.createElement('div');
+  ctrl.className = 'lock__ctrl';
+  const check = document.createElement('button');
+  check.type = 'button';
+  check.className = 'lock__check';
+  check.id = 'lock-check';
+  check.textContent = CONFIG.lockCheck;
+  check.addEventListener('click', checkLock);
+  const tries = document.createElement('span');
+  tries.className = 'lock__tries';
+  tries.textContent = `${CONFIG.lockTries}: ${p.tries}`;
+  ctrl.append(check, tries);
+
+  const hist = document.createElement('div');
+  hist.className = 'lock__history';
+  for (const h of p.history) {
+    const row = document.createElement('div');
+    row.className = 'lock__row';
+    const guess = document.createElement('span');
+    guess.className = 'lock__guess';
+    guess.textContent = h.guess.join('');
+    const dots = document.createElement('span');
+    dots.className = 'lock__dots';
+    for (let i = 0; i < h.bulls; i++) {
+      const d = document.createElement('b');
+      d.className = 'lock__dot lock__dot--bull';
+      dots.appendChild(d);
+    }
+    for (let i = 0; i < h.cows; i++) {
+      const d = document.createElement('b');
+      d.className = 'lock__dot lock__dot--cow';
+      dots.appendChild(d);
+    }
+    row.append(guess, dots);
+    hist.appendChild(row);
+  }
+
+  el.puzzleBoard.append(slots, ctrl, hist);
+}
+
+function checkLock() {
+  const p = puzzle;
+  if (!p || p.type !== 'lock' || p.solved) return;
+  const guess = p.slots.slice();
+  const { bulls, cows } = lockFeedback(guess, p.digits);
+  p.history.push({ guess, bulls, cows });
+  if (bulls === p.digits.length) {
+    p.solved = true;
+    el.puzzleHint.textContent = CONFIG.lockOpened;
+    revealCode(p.code);
+    return;
+  }
+  p.tries -= 1;
+  if (p.tries <= 0) {
+    p.solved = true;
+    revealCode(p.code);
+    return;
+  }
+  renderLock();
+}
+
 function revealCode(code) {
   el.puzzleBlock.classList.add('hidden');
   el.puzzleHint.textContent = CONFIG.puzzleSolved;
@@ -288,7 +421,7 @@ function revealCode(code) {
   el.codeBlock.classList.remove('hidden');
 }
 
-function showPuzzle(code) {
+function showSequencePuzzle(code) {
   clearPuzzleTimers();
   puzzle = {
     code,

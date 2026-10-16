@@ -446,7 +446,7 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
     maxCombo = Math.max(maxCombo, combo);
     comboPop = 1;
     score += (perfect ? 100 : 60) + Math.min(combo, 40) * 2;
-    health = Math.min(100, health + (perfect ? 2.5 : 1.5));
+    health = Math.min(100, health + (perfect ? 1.6 : 1.0));
     const x = L.ax + note.lane * L.laneW + L.laneW / 2;
     effects.push({ kind: 'ring', x, y: L.hitY, r: L.laneW * 0.7, life: 0.35, max: 0.35, color: LANE_COLORS[note.lane] });
     sparks(x, L.hitY, LANE_COLORS[note.lane], perfect ? 12 : 7, 3.2);
@@ -459,8 +459,8 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
     note.hit = false;
     misses += 1;
     combo = 0;
-    const mul = Math.max(0.45, 1 - 0.18 * fails);
-    health -= 9 * mul;
+    const mul = Math.max(0.6, 1 - 0.15 * fails);
+    health -= 16 * mul;
     missFlash = 1;
     const x = L.ax + note.lane * L.laneW + L.laneW / 2;
     pop('Мимо', x, L.hitY - 30, '#ff9aa8');
