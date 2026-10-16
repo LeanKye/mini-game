@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 2) throw new Error(`Лобби: ожидалось 2 уровня, got ${levelCards}`);
+    if (levelCards !== 3) throw new Error(`Лобби: ожидалось 3 уровня, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
-    if (lockedCards !== 0) throw new Error('Лобби: оба уровня должны быть открыты');
-    results.push('✓ Лобби: 2 уровня, оба открыты');
+    if (lockedCards !== 0) throw new Error('Лобби: все уровни должны быть открыты');
+    results.push('✓ Лобби: 3 уровня, все открыты');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -207,6 +207,31 @@ async function main() {
       .evaluate((n) => n.classList.contains('hidden'));
     if (!puzzleSkipped) throw new Error('skip: паззл должен быть пропущен');
     results.push('✓ Уровень 2: «Пропустить» сразу выдаёт код');
+
+    await page.evaluate(() => window.__secureOsTest.startLevel('level3'));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    const chartLen = await page.evaluate(() => window.__secureOsTest.rhythm().chart().length);
+    if (chartLen < 100) throw new Error('Ритм: чарт слишком короткий (' + chartLen + ')');
+    const firstNote = await page.evaluate(() => {
+      const n = window.__secureOsTest.rhythm().chart()[0];
+      return { time: n.time, lane: n.lane };
+    });
+    await page.waitForFunction(
+      (t) => window.__secureOsTest.rhythm().songTime() >= t - 0.02,
+      firstNote.time,
+      { timeout: 20000 }
+    );
+    const canvasBox = await page.locator('#game-canvas').boundingBox();
+    const lanePos = await page.evaluate((l) => window.__secureOsTest.rhythm().laneCenter(l), firstNote.lane);
+    await page.mouse.click(canvasBox.x + lanePos.x, canvasBox.y + lanePos.y);
+    await page.waitForTimeout(150);
+    const rhythmState = await page.evaluate(() => window.__secureOsTest.state());
+    if (rhythmState.hits < 1) throw new Error('Ритм: тап по ноте не засчитан');
+    results.push('✓ Уровень 3 (ритм): чарт построен, тап по ноте засчитывается');
+
+    await page.evaluate(() => window.__secureOsTest.forceWin());
+    await page.waitForSelector('#screen-reward:not(.hidden)');
+    results.push('✓ Уровень 3: победа ведёт на экран награды');
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;

@@ -1,6 +1,7 @@
 import { CONFIG } from './config.js';
 import { createPlatformer } from './game/platformer.js';
 import { createDefense } from './game/defense.js';
+import { createRhythm } from './game/rhythm.js';
 import { getReward } from './rewards.js';
 
 const screens = {
@@ -89,7 +90,9 @@ function startGame(levelId = currentLevelId, withIntro = true) {
   if (game) game.destroy();
   game = null;
 
-  const isPlatformer = level.id === 'level1';
+  const kind = level.kind || (level.id === 'level1' ? 'platformer' : 'defense');
+  const isPlatformer = kind === 'platformer';
+  el.canvas.style.aspectRatio = '';
   if (el.hudStars) el.hudStars.classList.toggle('hidden', !isPlatformer);
   if (el.controlsBox) el.controlsBox.classList.toggle('hidden', !isPlatformer);
   if (el.skip) el.skip.classList.toggle('hidden', !level.skippable);
@@ -112,6 +115,12 @@ function startGame(levelId = currentLevelId, withIntro = true) {
       onWin: handleWin,
     });
     el.hudTotal.textContent = String(game.getState().total);
+  } else if (kind === 'rhythm') {
+    updateTimer(0);
+    game = createRhythm(el.canvas, {
+      onHint: showGameHint,
+      onWin: handleWin,
+    });
   } else {
     updateTimer(0);
     game = createDefense(el.canvas, {
@@ -446,10 +455,11 @@ function buildLevelCards() {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'level-card' + (lvl.unlocked ? '' : ' level-card--locked');
+    card.dataset.kind = lvl.kind || 'platformer';
     card.dataset.index = String(i);
     card.innerHTML =
       `<span class="level-card__num">${i + 1}</span>` +
-      `<span class="level-card__icon">${lvl.unlocked ? '★' : lockSvg()}</span>` +
+      `<span class="level-card__icon">${lvl.unlocked ? escapeHtml(lvl.icon || '★') : lockSvg()}</span>` +
       `<span class="level-card__name">${escapeHtml(lvl.name)}</span>` +
       `<span class="level-card__sub">${escapeHtml(lvl.subtitle || '')}</span>`;
     el.levelsTrack.appendChild(card);
@@ -612,6 +622,7 @@ function init() {
       forceWin: () => game && game.win(),
       state: () => (game ? game.getState() : null),
       defense: () => (game && game.test ? game.test : null),
+      rhythm: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
       puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),

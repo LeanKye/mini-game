@@ -727,3 +727,8 @@ body {
   .intro__title { font-size: 1.3rem; }
   .intro__text { margin-bottom: 16px; }
 }
+
+/* ── Разные карточки уровней ────────────────────────────── */
+.level-card[data-kind="defense"] { background: linear-gradient(160deg, #7fd6c8, #7a9be0); }
+.level-card[data-kind="rhythm"] { background: linear-gradient(160deg, #ff8ac2, #6a3fb0); }
+.level-card__icon { font-size: 3.2rem; }
