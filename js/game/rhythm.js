@@ -146,11 +146,27 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
     userOffset = Number(localStorage.getItem('rhythmOffset')) || 0;
   } catch {}
 
-  function latency() {
-    if (!ac) return userOffset;
+  function autoLatency() {
+    if (!ac) return 0;
     const out = typeof ac.outputLatency === 'number' && ac.outputLatency > 0 ? ac.outputLatency : 0.09;
-    return out + (ac.baseLatency || 0) + userOffset;
+    return out + (ac.baseLatency || 0);
   }
+
+  function latency() {
+    return autoLatency() + userOffset;
+  }
+
+  function saveOffset() {
+    try {
+      localStorage.setItem('rhythmOffset', String(userOffset));
+    } catch {}
+  }
+
+  const CALIB_CLICKS = 10;
+  const CALIB_PERIOD = 0.75;
+  let calib = null;
+  let calibPulse = 0;
+  let calibNote = '';
 
   function songTime() {
     return clock() - t0 - latency();
@@ -196,6 +212,64 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
     o.start(when);
     o.stop(when + attack + decay + 0.05);
     return tail;
+  }
+
+  function startCalibration() {
+    const base = clock() + 0.8;
+    calib = { t0: base, taps: [], done: false, endAt: base + CALIB_CLICKS * CALIB_PERIOD + 0.4, skipRect: null };
+    state = 'calib';
+    calibNote = '';
+    if (!ac) return;
+    try {
+      const when = ac.currentTime + 0.8;
+      for (let k = 0; k < CALIB_CLICKS; k++) {
+        const w = when + k * CALIB_PERIOD;
+        tone(ac.destination, 'sine', 1200, w, 0.002, 0.07, 0.5, null);
+        tone(ac.destination, 'triangle', 600, w, 0.002, 0.09, 0.3, null);
+      }
+    } catch {}
+  }
+
+  function calibTap() {
+    if (!calib || calib.done) return;
+    calibPulse = 1;
+    const now = clock();
+    const k = Math.round((now - calib.t0) / CALIB_PERIOD);
+    if (k < 0 || k >= CALIB_CLICKS) return;
+    const delta = now - (calib.t0 + k * CALIB_PERIOD);
+    if (Math.abs(delta) < CALIB_PERIOD / 2) calib.taps.push(delta);
+  }
+
+  function finishCalibration(skipped) {
+    if (!calib || calib.done) return;
+    calib.done = true;
+    if (skipped) {
+      calibNote = 'Пропущено';
+    } else {
+      const taps = calib.taps.slice().sort((a, b) => a - b);
+      if (taps.length >= 5) {
+        const med = taps[Math.floor(taps.length / 2)];
+        const good = taps.filter((d) => Math.abs(d - med) < 0.12);
+        const mean = good.reduce((a, b) => a + b, 0) / good.length;
+        userOffset = Math.max(-0.3, Math.min(0.6, mean - autoLatency()));
+        saveOffset();
+        calibNote = 'Готово! Сдвиг подобран: ' + Math.round(userOffset * 1000) + ' мс';
+      } else {
+        calibNote = 'Не удалось поймать ритм - оставил прежние настройки';
+      }
+    }
+    stateUntil = clock() + (skipped ? 0.05 : 1.5);
+    state = 'calibDone';
+  }
+
+  function updateCalibration() {
+    if (state === 'calib' && calib) {
+      if (clock() > calib.endAt) finishCalibration(false);
+    } else if (state === 'calibDone' && clock() >= stateUntil) {
+      calib = null;
+      newRun();
+      if (onHint) onHint('Тапай по дорожкам в такт');
+    }
   }
 
   function kick(dest, when) {
@@ -406,6 +480,10 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
   }
 
   function tapLane(lane) {
+    if (state === 'calib') {
+      calibTap();
+      return;
+    }
     if (state !== 'play') return;
     pressed[lane] = 0.16;
     const now = songTime();
@@ -450,6 +528,11 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
     }
     floaters = floaters.filter((f) => f.life > 0);
 
+    if (calibPulse > 0) calibPulse -= dt * 4;
+    if (state === 'calib' || state === 'calibDone') {
+      updateCalibration();
+      return;
+    }
     if (state === 'failed') {
       if (clock() >= stateUntil) newRun();
       return;
@@ -731,7 +814,81 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
     }
   }
 
+  function drawCalibration() {
+    const t = perf();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    drawBackground(t, calibPulse > 0 ? calibPulse * 0.8 : 0);
+    const cx = W / 2;
+    const cy = H * 0.42;
+    const r = Math.min(W, H) * 0.14;
+
+    ctx.fillStyle = 'rgba(16, 8, 38, 0.55)';
+    rr(cx - Math.min(W - 24, 360) / 2, cy - r - 86, Math.min(W - 24, 360), r * 2 + 250, 22);
+    ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 21px 'Nunito', sans-serif";
+    ctx.fillText('Настройка звука', cx, cy - r - 52);
+    ctx.font = "700 14px 'Nunito', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText('Слушай щелчки и тапай по экрану', cx, cy - r - 26);
+    ctx.fillText('ровно в момент звука', cx, cy - r - 8);
+
+    const pulse = Math.max(0, calibPulse);
+    ctx.save();
+    ctx.shadowColor = '#ff7ab8';
+    ctx.shadowBlur = 24 + pulse * 22;
+    ctx.strokeStyle = pulse > 0 ? '#ffd0ea' : '#ff7ab8';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 14, r * (1 + pulse * 0.16), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = hexAlpha('#ff7ab8', 0.2 + pulse * 0.3);
+    ctx.beginPath();
+    ctx.arc(cx, cy + 14, r * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    const n = calib ? calib.taps.length : 0;
+    const dotY = cy + r + 50;
+    const step = 22;
+    for (let i = 0; i < CALIB_CLICKS; i++) {
+      ctx.fillStyle = i < n ? '#ffd36b' : 'rgba(255,255,255,0.25)';
+      ctx.beginPath();
+      ctx.arc(cx + (i - (CALIB_CLICKS - 1) / 2) * step, dotY, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.font = "800 15px 'Nunito', sans-serif";
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(calibNote || (state === 'calib' && clock() < (calib ? calib.t0 : 0) ? 'Приготовься...' : 'Тапай в такт щелчкам'), cx, dotY + 30);
+
+    if (state === 'calib' && calib) {
+      const bw = 190;
+      const bh = 38;
+      const bx = cx - bw / 2;
+      const by = dotY + 56;
+      calib.skipRect = { x: bx, y: by, w: bw, h: bh };
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      rr(bx, by, bw, bh, 19);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = "800 14px 'Nunito', sans-serif";
+      ctx.fillText('Пропустить настройку', cx, by + bh / 2 + 1);
+    }
+  }
+
   function draw() {
+    if (state === 'calib' || state === 'calibDone') {
+      drawCalibration();
+      return;
+    }
     const songT = songTime();
     const t = perf();
     const beatPhase = songT >= 0 ? (songT / BEAT) % 1 : 0;
@@ -776,7 +933,16 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
   function onPointerDown(e) {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    tapLane(laneFromX(e.clientX - rect.left));
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    if (state === 'calib' && calib && calib.skipRect) {
+      const q = calib.skipRect;
+      if (px >= q.x && px <= q.x + q.w && py >= q.y && py <= q.y + q.h) {
+        finishCalibration(true);
+        return;
+      }
+    }
+    tapLane(laneFromX(px));
   }
 
   function onKeyDown(e) {
@@ -824,8 +990,8 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
       ensureAudio();
       if (ac && ac.state === 'suspended') ac.resume().catch(() => {});
       setScale();
-      newRun();
-      if (onHint) onHint('Тапай по дорожкам в такт');
+      if (ac) startCalibration();
+      else newRun();
       raf = requestAnimationFrame(loop);
     },
     destroy() {
@@ -845,10 +1011,8 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
       if (resizeObserver) resizeObserver.disconnect();
     },
     adjustOffset(delta) {
-      userOffset = Math.max(-0.2, Math.min(0.4, Math.round((userOffset + delta) * 1000) / 1000));
-      try {
-        localStorage.setItem('rhythmOffset', String(userOffset));
-      } catch {}
+      userOffset = Math.max(-0.3, Math.min(0.6, Math.round((userOffset + delta) * 1000) / 1000));
+      saveOffset();
       return Math.round(userOffset * 1000);
     },
     getOffset: () => Math.round(userOffset * 1000),
@@ -875,6 +1039,11 @@ export function createRhythm(canvas, { onHint, onWin } = {}) {
       laneCenter: (lane) => ({ x: L.ax + lane * L.laneW + L.laneW / 2, y: L.hitY }),
       songTime,
       tap: tapLane,
+      skipCalibration: () => { if (state === 'calib') finishCalibration(true); },
+      calib: () => (calib ? { t0: calib.t0, period: CALIB_PERIOD, clicks: CALIB_CLICKS, now: clock(), done: calib.done } : null),
+      clock,
+      offset: () => Math.round(userOffset * 1000),
+      autoLatency: () => Math.round(autoLatency() * 1000),
       endTime: () => endTime,
     },
   };

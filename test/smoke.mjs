@@ -208,7 +208,40 @@ async function main() {
     if (!puzzleSkipped) throw new Error('skip: паззл должен быть пропущен');
     results.push('✓ Уровень 2: «Пропустить» сразу выдаёт код');
 
-    await page.evaluate(() => window.__secureOsTest.startLevel('level3'));
+    await page.evaluate(() => {
+      localStorage.removeItem('rhythmOffset');
+      window.__secureOsTest.startLevel('level3');
+    });
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    const calibBox = await page.locator('#game-canvas').boundingBox();
+    const FAKE_LATENCY = 0.15;
+    for (let k = 0; k < 9; k++) {
+      await page.waitForFunction(
+        ([kk, lat]) => {
+          const c = window.__secureOsTest.rhythm().calib();
+          return c && c.now - c.t0 >= kk * c.period + lat;
+        },
+        [k, FAKE_LATENCY],
+        { timeout: 20000 }
+      );
+      await page.mouse.click(calibBox.x + calibBox.width / 2, calibBox.y + calibBox.height * 0.3);
+    }
+    await page.waitForFunction(() => window.__secureOsTest.state().state === 'play', null, { timeout: 20000 });
+    const calibrated = await page.evaluate(() => {
+      const r = window.__secureOsTest.rhythm();
+      return { offset: r.offset(), auto: r.autoLatency() };
+    });
+    const expected = FAKE_LATENCY * 1000 - calibrated.auto;
+    if (Math.abs(calibrated.offset - expected) > 60) {
+      throw new Error('Калибровка: сдвиг ' + calibrated.offset + ' мс, ожидали около ' + Math.round(expected));
+    }
+    results.push('✓ Уровень 3: калибровка подбирает сдвиг звука по тапам (' + calibrated.offset + ' мс)');
+
+    await page.evaluate(() => {
+      window.__secureOsTest.startLevel('level3');
+      window.__secureOsTest.rhythm().skipCalibration();
+    });
+    await page.waitForFunction(() => window.__secureOsTest.state().state === 'play', null, { timeout: 10000 });
     await page.waitForSelector('#screen-game:not(.hidden)');
     const chartLen = await page.evaluate(() => window.__secureOsTest.rhythm().chart().length);
     if (chartLen < 100) throw new Error('Ритм: чарт слишком короткий (' + chartLen + ')');
