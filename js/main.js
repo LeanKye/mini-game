@@ -776,6 +776,7 @@ function init() {
       state: () => (game ? game.getState() : null),
       defense: () => (game && game.test ? game.test : null),
       rhythm: () => (game && game.test ? game.test : null),
+      rogue: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
       puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),

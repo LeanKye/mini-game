@@ -1,3 +1,5 @@
+import { spriteCanvas } from './sprites.js';
+
 const VIEW = { w: 360, h: 480 };
 const RX0 = 14;
 const RX1 = 346;
@@ -119,51 +121,90 @@ function glowSprite(color) {
   return c;
 }
 
+const GRID = 7;
+
 function genFloor(floor, rnd) {
-  const cells = new Map();
   const key = (x, y) => `${x},${y}`;
+  const cells = new Map();
   const list = [];
-  const start = { x: 2, y: 4 };
-  let cur = { ...start };
-  cells.set(key(cur.x, cur.y), 0);
-  list.push({ ...cur });
+  const start = { x: 3, y: 3 };
+  const add = (x, y) => {
+    cells.set(key(x, y), list.length);
+    list.push({ x, y });
+  };
+  add(start.x, start.y);
+  const dirs = Object.keys(DIRV);
+  const edges = [];
+  const edgeSet = new Set();
+  const edgeKey = (a, b) => [a, b].sort().join('|');
+  const target = 9 + Math.floor(rnd() * 4);
   let guard = 0;
-  while (list.length < 8 && guard < 400) {
+  // случайное дерево: ветвится и уходит в тупики
+  while (list.length < target && guard < 2000) {
     guard += 1;
-    const dirs = Object.keys(DIRV);
-    const d = dirs[Math.floor(rnd() * 4)];
-    const nx = cur.x + DIRV[d][0];
-    const ny = cur.y + DIRV[d][1];
-    if (nx < 0 || ny < 0 || nx > 4 || ny > 4) continue;
-    cur = { x: nx, y: ny };
-    if (!cells.has(key(nx, ny))) {
-      cells.set(key(nx, ny), list.length);
-      list.push({ x: nx, y: ny });
+    const from = list[Math.floor(rnd() * list.length)];
+    const d = dirs[Math.floor(rnd() * dirs.length)];
+    const nx = from.x + DIRV[d][0];
+    const ny = from.y + DIRV[d][1];
+    if (nx < 0 || ny < 0 || nx >= GRID || ny >= GRID || cells.has(key(nx, ny))) continue;
+    const a = key(from.x, from.y);
+    const b = key(nx, ny);
+    add(nx, ny);
+    edges.push([a, b]);
+    edgeSet.add(edgeKey(a, b));
+  }
+  // дополнительные проходы создают петли и обходные пути
+  for (const c of list) {
+    for (const d of dirs) {
+      const nx = c.x + DIRV[d][0];
+      const ny = c.y + DIRV[d][1];
+      if (!cells.has(key(nx, ny))) continue;
+      const a = key(c.x, c.y);
+      const b = key(nx, ny);
+      if (edgeSet.has(edgeKey(a, b)) || rnd() > 0.2) continue;
+      edgeSet.add(edgeKey(a, b));
+      edges.push([a, b]);
+    }
+  }
+  // босс - комната дальше всего от старта по пути через двери
+  const adj = new Map(list.map((c) => [key(c.x, c.y), []]));
+  for (const [a, b] of edges) {
+    adj.get(a).push(b);
+    adj.get(b).push(a);
+  }
+  const startKey = key(start.x, start.y);
+  const dist = new Map([[startKey, 0]]);
+  const queue = [startKey];
+  for (let qi = 0; qi < queue.length; qi++) {
+    const cur = queue[qi];
+    for (const nb of adj.get(cur)) {
+      if (dist.has(nb)) continue;
+      dist.set(nb, dist.get(cur) + 1);
+      queue.push(nb);
     }
   }
   let far = 0;
-  let farD = -1;
   list.forEach((c, i) => {
-    const dd = Math.abs(c.x - start.x) + Math.abs(c.y - start.y);
-    if (dd > farD) {
-      farD = dd;
-      far = i;
-    }
+    if (dist.get(key(c.x, c.y)) >= dist.get(key(list[far].x, list[far].y))) far = i;
   });
   const rooms = list.map((c, i) => {
-    const has = (x, y) => cells.has(key(x, y));
+    const doorTo = (dx, dy) => {
+      const o = { x: c.x + dx, y: c.y + dy };
+      return edgeSet.has(edgeKey(key(c.x, c.y), key(o.x, o.y)));
+    };
     const kind = i === 0 ? 'start' : i === far ? 'boss' : 'normal';
     return {
       x: c.x,
       y: c.y,
       kind,
-      doors: { n: has(c.x, c.y - 1), s: has(c.x, c.y + 1), w: has(c.x - 1, c.y), e: has(c.x + 1, c.y) },
+      doors: { n: doorTo(0, -1), s: doorTo(0, 1), w: doorTo(-1, 0), e: doorTo(1, 0) },
       cleared: kind === 'start',
       spawned: kind === 'start',
       enemies: [],
       obstacles: makeObstacles(rnd, floor),
       cache: null,
       index: i,
+      visited: false,
     };
   });
   const byKey = new Map(rooms.map((r) => [key(r.x, r.y), r]));
@@ -291,6 +332,8 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       seenSyn: new Set(),
       shake: 0,
       dummy: null,
+      lockT: 0,
+      showMap: false,
     };
       enterRoom(map.rooms[map.startIdx], null);
     if (withTutorial) {
@@ -315,6 +358,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
 
   function enterRoom(room, enteredFrom) {
     run.room = room;
+    room.visited = true;
     run.bullets = [];
     run.tears = [];
     run.shield = run.stats.shieldMax;
@@ -504,26 +548,31 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     return room.doors[d] && room.cleared;
   }
 
+  function doorHit(d, p) {
+    if (d === 'n') return p.y <= RY0 + 16 && Math.abs(p.x - CX) < DOOR / 2;
+    if (d === 's') return p.y >= RY1 - 16 && Math.abs(p.x - CX) < DOOR / 2;
+    if (d === 'w') return p.x <= RX0 + 16 && Math.abs(p.y - CY) < DOOR / 2;
+    return p.x >= RX1 - 16 && Math.abs(p.y - CY) < DOOR / 2;
+  }
+
   function checkDoors() {
     const room = run.room;
     const p = run.player;
     for (const d of ['n', 's', 'w', 'e']) {
-      if (!room.doors[d] || !room.cleared) continue;
-      let hit = false;
-      if (d === 'n') hit = p.y <= RY0 + 16 && Math.abs(p.x - CX) < DOOR / 2;
-      if (d === 's') hit = p.y >= RY1 - 16 && Math.abs(p.x - CX) < DOOR / 2;
-      if (d === 'w') hit = p.x <= RX0 + 16 && Math.abs(p.y - CY) < DOOR / 2;
-      if (d === 'e') hit = p.x >= RX1 - 16 && Math.abs(p.y - CY) < DOOR / 2;
-      if (!hit) continue;
+      if (!room.doors[d] || !doorHit(d, p)) continue;
+      if (!room.cleared) {
+        if (run.lockT <= 0) {
+          run.lockT = 1.5;
+          run.floaters.push({ text: 'Дверь заперта: победи врагов', x: VIEW.w / 2, y: 110, col: '#ffffff', life: 1.5 });
+        }
+        return;
+      }
       if (room.kind === 'tut') {
         if (run.tut === 4) nextFloor();
         return;
       }
-      const nx = room.x + DIRV[d][0];
-      const ny = room.y + DIRV[d][1];
-      const next = run.map.byKey.get(`${nx},${ny}`);
+      const next = run.map.byKey.get(`${room.x + DIRV[d][0]},${room.y + DIRV[d][1]}`);
       if (!next) return;
-      run.tut = run.tut === -1 ? -1 : run.tut;
       enterRoom(next, OPP[d]);
       return;
     }
@@ -542,7 +591,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     run.pickOpts = pick;
     run.pickNext = nextF;
     run.state = 'pick';
-    if (run.tut === 2) run.tut = 3;
+    if (run.tut >= 0) run.tut = 3;
   }
 
   function choose(i) {
@@ -842,7 +891,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     if (alive) return;
     room.cleared = true;
     if (room.kind === 'tut') {
-      if (run.tut === 2) run.tut = 3;
+      if (run.tut >= 0) run.tut = 3;
       openPick(false);
     } else if (room.kind === 'boss') {
       if (run.floor >= FLOORS) {
@@ -887,6 +936,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     for (const f of run.floaters) f.life -= dt;
     run.floaters = run.floaters.filter((f) => f.life > 0);
     if (run.shake > 0) run.shake -= dt * 40;
+    run.lockT -= dt;
 
     if (run.state === 'dead') {
       run.stateT -= dt;
@@ -897,7 +947,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       }
       return;
     }
-    if (run.state === 'pick' || run.state === 'won') return;
+    if (run.state === 'pick' || run.state === 'won' || run.showMap) return;
 
     updatePlayer(dt);
     if (run.tut >= 0) tutorialTick();
@@ -945,25 +995,84 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     ctx.fill();
   }
 
+  function drawDoor(room, d) {
+    const p = doorPos(d);
+    const horiz = d === 'n' || d === 's';
+    const w = horiz ? DOOR : 14;
+    const h = horiz ? 14 : DOOR;
+    const x = p.x - w / 2;
+    const y = p.y - h / 2;
+    const t = perfNow();
+    const open = room.cleared;
+    // проём в стене
+    ctx.fillStyle = '#3b2a5c';
+    rr(x - 4, y - 4, w + 8, h + 8, 6);
+    ctx.fill();
+    if (open) {
+      ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 5);
+      ctx.drawImage(glowSprite('#9ff0c0'), p.x - 34, p.y - 34, 68, 68);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#b9ffd9';
+    } else {
+      ctx.fillStyle = '#8a5a3b';
+    }
+    rr(x, y, w, h, 3);
+    ctx.fill();
+    ctx.strokeStyle = open ? '#2f9e6e' : '#4a2f1f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let k = 1; k <= 2; k++) {
+      if (horiz) {
+        const xx = x + (w * k) / 3;
+        ctx.moveTo(xx, y + 2);
+        ctx.lineTo(xx, y + h - 2);
+      } else {
+        const yy = y + (h * k) / 3;
+        ctx.moveTo(x + 2, yy);
+        ctx.lineTo(x + w - 2, yy);
+      }
+    }
+    ctx.stroke();
+    if (!open) {
+      // замок: дверь заперта, пока не зачищена комната
+      ctx.fillStyle = '#ffe066';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+    // стрелка внутри комнаты указывает на открытую дверь
+    const v = DIRV[d];
+    const dist = 34 + Math.sin(t * 6) * 3;
+    const ax = p.x - v[0] * dist;
+    const ay = p.y - v[1] * dist;
+    const px = -v[1];
+    const py = v[0];
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(ax + v[0] * 9, ay + v[1] * 9);
+    ctx.lineTo(ax - v[0] * 6 + px * 7, ay - v[1] * 6 + py * 7);
+    ctx.lineTo(ax - v[0] * 6 - px * 7, ay - v[1] * 6 - py * 7);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   function drawPlayer() {
     const p = run.player;
     const blink = run.invuln > 0.5 && Math.floor(run.invuln * 20) % 2 === 0;
     if (blink) return;
     drawEntityShadow(p.x, p.y, 12);
-    ctx.fillStyle = '#c9a8f0';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#9d78e0';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y + 2, 12, Math.PI * 0.1, Math.PI * 0.9);
-    ctx.fill();
-    ctx.fillStyle = '#3f2f52';
-    const ex = p.fx * 2;
-    ctx.beginPath();
-    ctx.arc(p.x - 4 + ex, p.y - 2, 1.9, 0, Math.PI * 2);
-    ctx.arc(p.x + 4 + ex, p.y - 2, 1.9, 0, Math.PI * 2);
-    ctx.fill();
+    const img = spriteCanvas('hero');
+    const sc = 2.4;
+    const dw = img.width * sc;
+    const dh = img.height * sc;
+    const bob = run.dash.t > 0 ? 0 : Math.abs(Math.sin(perfNow() * 9)) * 1.5;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(p.x, p.y);
+    if (p.fx < 0) ctx.scale(-1, 1);
+    ctx.drawImage(img, -dw / 2, -dh * 0.62 - bob, dw, dh);
+    ctx.restore();
     if (run.stats.orbit) {
       const t = perfNow();
       for (let i = 0; i < run.stats.orbit; i++) {
@@ -978,24 +1087,18 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
 
   function drawEnemy(e) {
     drawEntityShadow(e.x, e.y, e.r);
-    const flash = e.flash > 0;
-    ctx.fillStyle = flash ? '#ffffff' : e.col;
-    ctx.beginPath();
-    if (e.type === 'charger' && e.state === 'wind') {
-      const j = Math.sin(perfNow() * 60) * 1.5;
-      ctx.arc(e.x + j, e.y, e.r, 0, Math.PI * 2);
-    } else {
-      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
-    }
-    ctx.fill();
-    ctx.strokeStyle = e.dark;
-    ctx.lineWidth = e.boss ? 3 : 2;
-    ctx.stroke();
-    ctx.fillStyle = '#3f2f52';
-    ctx.beginPath();
-    ctx.arc(e.x - e.r * 0.35, e.y - e.r * 0.15, 1.8, 0, Math.PI * 2);
-    ctx.arc(e.x + e.r * 0.35, e.y - e.r * 0.15, 1.8, 0, Math.PI * 2);
-    ctx.fill();
+    const img = spriteCanvas(e.type, e.flash > 0);
+    const sc = { blob: 2.2, spitter: 2.2, charger: 2.4, queen: 3.2 }[e.type] || 2.2;
+    const dw = img.width * sc;
+    const dh = img.height * sc;
+    const t = perfNow();
+    const jx = e.type === 'charger' && e.state === 'wind' ? Math.sin(t * 60) * 1.5 : 0;
+    const bob = Math.sin(t * 6 + e.x) * (e.boss ? 1.5 : 1);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(e.x + jx, e.y + bob);
+    ctx.drawImage(img, -dw / 2, -dh * 0.6, dw, dh);
+    ctx.restore();
     if (e.burnT > 0) {
       ctx.fillStyle = 'rgba(255,150,70,0.8)';
       ctx.beginPath();
@@ -1004,6 +1107,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     }
     if (e.slowT > 0) {
       ctx.strokeStyle = 'rgba(120,230,255,0.9)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(e.x, e.y, e.r + 3, 0, Math.PI * 2);
       ctx.stroke();
@@ -1011,10 +1115,10 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     if (e.hp < e.maxHp) {
       const bw = e.r * 2.2;
       ctx.fillStyle = 'rgba(40,20,60,0.35)';
-      rr(e.x - bw / 2, e.y - e.r - 9, bw, 4, 2);
+      rr(e.x - bw / 2, e.y - e.r - 12, bw, 4, 2);
       ctx.fill();
       ctx.fillStyle = '#7bd88f';
-      rr(e.x - bw / 2, e.y - e.r - 9, bw * Math.max(0, e.hp / e.maxHp), 4, 2);
+      rr(e.x - bw / 2, e.y - e.r - 12, bw * Math.max(0, e.hp / e.maxHp), 4, 2);
       ctx.fill();
     }
   }
@@ -1031,6 +1135,10 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     for (const b of run.bullets) {
       ctx.drawImage(glowSprite('#ff7a9a'), b.x - 8, b.y - 8, 16, 16);
     }
+  }
+
+  function neighborOf(room, d) {
+    return run.map.byKey.get(`${room.x + DIRV[d][0]},${room.y + DIRV[d][1]}`);
   }
 
   function drawHud() {
@@ -1051,25 +1159,22 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       ctx.font = "bold 12px 'Nunito', sans-serif";
       ctx.fillText(`щит ${run.shield}`, 110, 30);
     }
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    // кнопка карты (в обучении скрыта)
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     rr(VIEW.w - 92, 10, 82, 40, 14);
     ctx.fill();
     ctx.fillStyle = '#5b3348';
-    ctx.font = "bold 13px 'Nunito', sans-serif";
     ctx.textAlign = 'center';
-    ctx.fillText(run.tut >= 0 ? 'Обучение' : `Этаж ${run.floor}/${FLOORS}`, VIEW.w - 51, 30);
-
-    const map = run.map;
-    if (run.tut < 0) {
-      const sq = 10;
-      for (const r of map.rooms) {
-        const x = VIEW.w - 14 - 4 * (sq + 3) + (r.x - 0) * (sq + 3) - 4 * 0;
-        const y = 58 + (r.y) * (sq + 3);
-        const col = r === run.room ? '#ff7ab8' : r.cleared ? '#b79bf0' : 'rgba(255,255,255,0.6)';
-        ctx.fillStyle = col;
-        rr(x, y, sq, sq, 3);
-        ctx.fill();
-      }
+    ctx.textBaseline = 'middle';
+    if (run.tut >= 0) {
+      ctx.font = "bold 13px 'Nunito', sans-serif";
+      ctx.fillText('Обучение', VIEW.w - 51, 30);
+    } else {
+      ctx.font = "bold 12px 'Nunito', sans-serif";
+      ctx.fillText(`Этаж ${run.floor}/${FLOORS}`, VIEW.w - 51, 22);
+      ctx.fillStyle = '#7a4fb0';
+      ctx.font = "800 11px 'Nunito', sans-serif";
+      ctx.fillText('КАРТА ▸', VIEW.w - 51, 37);
     }
 
     ctx.textAlign = 'left';
@@ -1081,6 +1186,72 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       ctx.fill();
       ix += 20;
     }
+  }
+
+  function drawMap() {
+    const map = run.map;
+    ctx.fillStyle = 'rgba(30,14,50,0.9)';
+    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 18px 'Nunito', sans-serif";
+    ctx.fillText(`Карта: этаж ${run.floor}/${FLOORS}`, VIEW.w / 2, 40);
+
+    const xs = map.rooms.map((r) => r.x);
+    const ys = map.rooms.map((r) => r.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const cols = Math.max(...xs) - minX + 1;
+    const rows = Math.max(...ys) - minY + 1;
+    const STEP = 44;
+    const SQ = 30;
+    const ox = VIEW.w / 2 - ((cols - 1) * STEP) / 2;
+    const oy = 250 - ((rows - 1) * STEP) / 2;
+    const cx = (r) => ox + (r.x - minX) * STEP;
+    const cy = (r) => oy + (r.y - minY) * STEP;
+    const known = (r) => r.visited || Object.keys(r.doors).some((d) => r.doors[d] && neighborOf(r, d) && neighborOf(r, d).visited);
+
+    // проходы между известными комнатами
+    ctx.strokeStyle = '#8a7aa6';
+    ctx.lineWidth = 4;
+    for (const r of map.rooms) {
+      for (const d of ['e', 's']) {
+        const n = r.doors[d] ? neighborOf(r, d) : null;
+        if (!n || !(r.visited || n.visited)) continue;
+        ctx.beginPath();
+        ctx.moveTo(cx(r) + SQ / 2, cy(r) + SQ / 2);
+        ctx.lineTo(cx(n) + SQ / 2, cy(n) + SQ / 2);
+        ctx.stroke();
+      }
+    }
+    ctx.font = "bold 16px 'Nunito', sans-serif";
+    for (const r of map.rooms) {
+      if (!known(r)) continue;
+      let fill = 'rgba(255,255,255,0.22)';
+      let glyph = '?';
+      if (r.visited) {
+        fill = r.kind === 'start' ? '#9ff0c0' : r.kind === 'boss' ? '#ff7ab8' : '#b79bf0';
+        glyph = r.kind === 'boss' ? '♛' : r.kind === 'start' ? '⌂' : '';
+      }
+      ctx.fillStyle = fill;
+      rr(cx(r), cy(r), SQ, SQ, 6);
+      ctx.fill();
+      if (r === run.room) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        rr(cx(r) - 3, cy(r) - 3, SQ + 6, SQ + 6, 8);
+        ctx.stroke();
+      }
+      if (glyph) {
+        ctx.fillStyle = '#2b1d3d';
+        ctx.fillText(glyph, cx(r) + SQ / 2, cy(r) + SQ / 2 + 1);
+      }
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = "600 12px 'Nunito', sans-serif";
+    ctx.fillText('Белая рамка - ты здесь · ♛ - босс · ? - не исследовано', VIEW.w / 2, 420);
+    ctx.fillText('Нажми, чтобы вернуться', VIEW.w / 2, 446);
   }
 
   function drawBanner(text) {
@@ -1100,7 +1271,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       'Уклонись рывком: кнопка справа внизу',
       'Стреляй: цель стреляет в ответ, убей её',
       'Выбери предмет: он меняет твою стрельбу',
-      'Иди в дверь - начнётся первый этаж',
+      'Иди в открытую дверь внизу - начнётся первый этаж',
     ];
     return steps[Math.max(0, Math.min(4, run.tut))];
   }
@@ -1179,12 +1350,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     const room = run.room;
     ctx.drawImage(roomCache(room), 0, 0);
     for (const d of ['n', 's', 'w', 'e']) {
-      if (!room.doors[d]) continue;
-      const p = doorPos(d);
-      ctx.fillStyle = doorOpen(room, d) ? '#fff3c4' : '#8a7aa6';
-      if (d === 'n' || d === 's') rr(p.x - DOOR / 2, p.y - 6, DOOR, 12, 4);
-      else rr(p.x - 6, p.y - DOOR / 2, 12, DOOR, 4);
-      ctx.fill();
+      if (room.doors[d]) drawDoor(room, d);
     }
     for (const pt of run.particles) {
       ctx.fillStyle = pt.col;
@@ -1228,6 +1394,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     ctx.fillText('РЫВОК', VIEW.w - 40, VIEW.h - 40);
 
     drawHud();
+    if (run.showMap) drawMap();
     if (run.tut >= 0) drawBanner(tutorialText());
     if (run.state === 'pick') drawPick();
     if (run.state === 'dead') drawDead();
@@ -1251,6 +1418,10 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
   function onPointerDown(e) {
     e.preventDefault();
     if (!run) return;
+    if (run.showMap) {
+      run.showMap = false;
+      return;
+    }
     const q = toLogical(e.clientX, e.clientY);
     if (run.state === 'pick') {
       for (let i = 0; i < 3; i++) {
@@ -1263,6 +1434,11 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       return;
     }
     if (run.state !== 'play') return;
+    if (run.tut < 0 && q.x >= VIEW.w - 92 && q.x <= VIEW.w - 10 && q.y >= 10 && q.y <= 50) {
+      run.showMap = true;
+      joy = null;
+      return;
+    }
     if (Math.hypot(q.x - (VIEW.w - 40), q.y - (VIEW.h - 40)) < 30) {
       dash();
       return;
@@ -1289,6 +1465,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     else if (k === 'arrowright' || k === 'd') keys.right = true;
     else if (k === 'arrowup' || k === 'w') keys.up = true;
     else if (k === 'arrowdown' || k === 's') keys.down = true;
+    else if (k === 'm' && run && run.tut < 0) run.showMap = !run.showMap;
     else if (k === ' ') {
       e.preventDefault();
       dash();

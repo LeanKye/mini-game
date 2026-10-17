@@ -300,6 +300,23 @@ async function main() {
       throw new Error('Уровень 4: награда не расшифровалась');
     }
     results.push('✓ Уровень 4: roguelike запускается и рисует поле');
+    await page.evaluate(() => window.__secureOsTest.startLevel('level4', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.evaluate(() => window.__secureOsTest.rogue().killAll());
+    await page.waitForFunction(() => window.__secureOsTest.rogue().tutorialStep() === 3, null, { timeout: 5000 });
+    await page.evaluate(() => window.__secureOsTest.rogue().pick(0));
+    await page.waitForFunction(() => window.__secureOsTest.rogue().tutorialStep() === 4, null, { timeout: 5000 });
+    await page.keyboard.down('s');
+    await page.waitForFunction(() => window.__secureOsTest.rogue().floor() === 1, null, { timeout: 10000 }).catch(() => null);
+    await page.keyboard.up('s');
+    const floorAfterDoor = await page.evaluate(() => window.__secureOsTest.rogue().floor());
+    if (floorAfterDoor !== 1) throw new Error('Уровень 4: после выбора предмета дверь внизу не ведёт на этаж 1');
+    await page.evaluate(() => window.__secureOsTest.rogue().skipTutorial());
+    await page.waitForFunction(() => window.__secureOsTest.rogue().floor() === 1, null, { timeout: 5000 }).catch(() => null);
+    const floorAfterSkip = await page.evaluate(() => window.__secureOsTest.rogue().floor());
+    if (floorAfterSkip !== 1) throw new Error('Уровень 4: пропуск обучения не переводит на этаж 1');
+    results.push('✓ Уровень 4: обучение - выбор предмета открывает дверь, проход ведёт на этаж 1');
+
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;
