@@ -1,6 +1,7 @@
 import { spriteCanvas } from './sprites.js';
 
 const VIEW = { w: 360, h: 480 };
+const MM = { x: VIEW.w - 98, y: 8, w: 88, h: 58 };
 const RX0 = 14;
 const RX1 = 346;
 const RY0 = 70;
@@ -187,12 +188,17 @@ function genFloor(floor, rnd) {
   list.forEach((c, i) => {
     if (dist.get(key(c.x, c.y)) >= dist.get(key(list[far].x, list[far].y))) far = i;
   });
+  // золотая комната: одна на этаж, не старт и не босс
+  const goldPool = list.map((_, i) => i).filter((i) => i !== 0 && i !== far && dist.get(key(list[i].x, list[i].y)) >= 2);
+  const fallbackPool = list.map((_, i) => i).filter((i) => i !== 0 && i !== far);
+  const pool = goldPool.length ? goldPool : fallbackPool;
+  const goldIdx = pool[Math.floor(rnd() * pool.length)];
   const rooms = list.map((c, i) => {
     const doorTo = (dx, dy) => {
       const o = { x: c.x + dx, y: c.y + dy };
       return edgeSet.has(edgeKey(key(c.x, c.y), key(o.x, o.y)));
     };
-    const kind = i === 0 ? 'start' : i === far ? 'boss' : 'normal';
+    const kind = i === 0 ? 'start' : i === far ? 'boss' : i === goldIdx ? 'gold' : 'normal';
     return {
       x: c.x,
       y: c.y,
@@ -231,40 +237,98 @@ function makeObstacles(rnd, floor) {
   return out;
 }
 
+function rrG(g, x, y, w, h, r) {
+  const k = Math.min(r, w / 2, h / 2);
+  g.beginPath();
+  g.moveTo(x + k, y);
+  g.arcTo(x + w, y, x + w, y + h, k);
+  g.arcTo(x + w, y + h, x, y + h, k);
+  g.arcTo(x, y + h, x, y, k);
+  g.arcTo(x, y, x + w, y, k);
+  g.closePath();
+}
+
 function roomCache(room) {
   if (room.cache) return room.cache;
   const c = document.createElement('canvas');
   c.width = VIEW.w;
   c.height = VIEW.h;
   const g = c.getContext('2d');
+  const gold = room.kind === 'gold';
+  const boss = room.kind === 'boss';
   const grad = g.createLinearGradient(0, RY0, 0, RY1);
-  grad.addColorStop(0, '#f7ecff');
-  grad.addColorStop(1, '#ffe4ef');
+  if (gold) {
+    grad.addColorStop(0, '#fff7d6');
+    grad.addColorStop(1, '#ffd45c');
+  } else if (boss) {
+    grad.addColorStop(0, '#ffe0e8');
+    grad.addColorStop(1, '#f5a9c0');
+  } else {
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, '#e4d4ff');
+  }
   g.fillStyle = grad;
   g.fillRect(RX0, RY0, RX1 - RX0, RY1 - RY0);
-  g.fillStyle = 'rgba(255,255,255,0.55)';
-  for (let x = RX0 + 24; x < RX1; x += 40) {
-    for (let y = RY0 + 24; y < RY1; y += 40) {
+  // плиты пола в шахматном порядке
+  g.fillStyle = gold ? 'rgba(190,120,10,0.18)' : boss ? 'rgba(160,40,90,0.14)' : 'rgba(110,80,170,0.14)';
+  for (let x = RX0; x < RX1; x += 28) {
+    for (let y = RY0; y < RY1; y += 28) {
+      if ((((x - RX0) / 28) + ((y - RY0) / 28)) % 2 === 0) g.fillRect(x, y, 28, 28);
+    }
+  }
+  // блики-искры
+  g.fillStyle = gold ? '#ffffff' : 'rgba(255,255,255,0.9)';
+  for (let x = RX0 + 20; x < RX1; x += 44) {
+    for (let y = RY0 + 20; y < RY1; y += 44) {
+      const j = ((x * 13 + y * 7) % 11) - 5;
       g.beginPath();
-      g.arc(x + ((y / 40) % 2) * 20, y, 2.2, 0, Math.PI * 2);
+      g.arc(x + j, y - j, gold ? 2.2 : 1.4, 0, Math.PI * 2);
       g.fill();
     }
   }
-  g.fillStyle = '#c9b1e6';
-  g.fillRect(0, RY0 - 14, VIEW.w, 14);
-  g.fillRect(0, RY1, VIEW.w, 14);
-  g.fillRect(RX0 - 14, RY0, 14, RY1 - RY0);
-  g.fillRect(RX1, RY0, 14, RY1 - RY0);
-  g.fillStyle = '#b79bf0';
+  // стены: кирпичная кладка
+  const wallCol = gold ? '#a8741a' : boss ? '#7a2a4a' : '#4e3380';
+  const wallHi = gold ? '#ffe08a' : boss ? '#ff9ec0' : '#a68ae0';
+  const walls = [
+    [0, RY0 - 14, VIEW.w, 14],
+    [0, RY1, VIEW.w, 14],
+    [RX0 - 14, RY0, 14, RY1 - RY0],
+    [RX1, RY0, 14, RY1 - RY0],
+  ];
+  for (const [x, y, w, h] of walls) {
+    g.fillStyle = wallCol;
+    g.fillRect(x, y, w, h);
+  }
+  g.fillStyle = wallHi;
+  g.fillRect(RX0, RY0 - 2, RX1 - RX0, 2);
+  g.fillRect(RX0, RY1, RX1 - RX0, 2);
+  g.fillRect(RX0, RY0, 2, RY1 - RY0);
+  g.fillRect(RX1 - 2, RY0, 2, RY1 - RY0);
+  g.strokeStyle = 'rgba(0,0,0,0.25)';
+  g.lineWidth = 1;
+  g.beginPath();
+  for (let y = 0; y < 14; y += 7) {
+    for (let x = -7; x < VIEW.w; x += 14) {
+      const xx = x + (y ? 7 : 0);
+      g.moveTo(xx, RY0 - 14 + y);
+      g.lineTo(xx, RY0 - 14 + y + 7);
+    }
+  }
+  g.stroke();
+  // препятствия: каменные блоки с объёмом
   for (const o of room.obstacles) {
-    g.fillStyle = 'rgba(90,60,130,0.18)';
+    g.fillStyle = 'rgba(40,20,70,0.35)';
     g.beginPath();
-    g.ellipse(o.x + o.w / 2, o.y + o.h + 4, o.w * 0.55, 5, 0, 0, Math.PI * 2);
+    g.ellipse(o.x + o.w / 2, o.y + o.h + 3, o.w * 0.55, 5, 0, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = '#b79bf0';
-    g.fillRect(o.x, o.y, o.w, o.h);
-    g.fillStyle = '#d9c8ff';
-    g.fillRect(o.x, o.y, o.w, 6);
+    g.fillStyle = gold ? '#c48a2a' : '#8f7bbf';
+    rrG(g, o.x, o.y, o.w, o.h, 6);
+    g.fillStyle = gold ? '#ffe39a' : '#cdbcf5';
+    rrG(g, o.x, o.y, o.w, 7, 6);
+    g.strokeStyle = gold ? '#6b4308' : '#3e2a66';
+    g.lineWidth = 2;
+    rrG(g, o.x, o.y, o.w, o.h, 6);
+    g.stroke();
   }
   room.cache = c;
   return c;
@@ -578,18 +642,19 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     }
   }
 
-  function openPick(nextF) {
+  function openPick(nextF, count = 3) {
     const owned = new Set(run.items.map((i) => i.id));
     const pool = ITEMS.filter((i) => !owned.has(i.id));
     const pick = [];
-    const src = pool.length >= 3 ? pool : ITEMS;
+    const src = pool.length >= count ? pool : ITEMS;
     const copy = src.slice();
-    while (pick.length < 3 && copy.length) {
+    while (pick.length < count && copy.length) {
       const k = Math.floor(run.rnd() * copy.length);
       pick.push(copy.splice(k, 1)[0]);
     }
     run.pickOpts = pick;
     run.pickNext = nextF;
+    run.pickTitle = count === 2 ? 'Золотая комната: выбери один предмет' : 'Выбери предмет';
     run.state = 'pick';
     if (run.tut >= 0) run.tut = 3;
   }
@@ -887,20 +952,17 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
   function checkRoomClear() {
     const room = run.room;
     if (room.cleared || !room.spawned) return;
-    const alive = room.enemies.some((e) => !e.dead);
-    if (alive) return;
+    if (room.enemies.some((e) => !e.dead)) return;
     room.cleared = true;
     if (room.kind === 'tut') {
       if (run.tut >= 0) run.tut = 3;
-      openPick(false);
+      openPick(false, 3);
+    } else if (room.kind === 'gold') {
+      // предметы даются только в золотой комнате этажа: два варианта, один на выбор
+      openPick(false, 2);
     } else if (room.kind === 'boss') {
-      if (run.floor >= FLOORS) {
-        finishRun();
-      } else {
-        openPick(true);
-      }
-    } else if (room.kind === 'normal') {
-      openPick(false);
+      if (run.floor >= FLOORS) finishRun();
+      else nextFloor();
     }
   }
 
@@ -998,27 +1060,29 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
   function drawDoor(room, d) {
     const p = doorPos(d);
     const horiz = d === 'n' || d === 's';
-    const w = horiz ? DOOR : 14;
-    const h = horiz ? 14 : DOOR;
+    const w = horiz ? DOOR : 16;
+    const h = horiz ? 16 : DOOR;
     const x = p.x - w / 2;
     const y = p.y - h / 2;
     const t = perfNow();
     const open = room.cleared;
+    const dest = neighborOf(room, d);
+    const icon = dest ? roomIcon(dest.kind) : '';
     // проём в стене
-    ctx.fillStyle = '#3b2a5c';
+    ctx.fillStyle = '#2b1d3d';
     rr(x - 4, y - 4, w + 8, h + 8, 6);
     ctx.fill();
     if (open) {
       ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 5);
-      ctx.drawImage(glowSprite('#9ff0c0'), p.x - 34, p.y - 34, 68, 68);
+      ctx.drawImage(glowSprite('#3fe0a0'), p.x - 36, p.y - 36, 72, 72);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#b9ffd9';
+      ctx.fillStyle = '#7dffc4';
     } else {
-      ctx.fillStyle = '#8a5a3b';
+      ctx.fillStyle = '#b06a3a';
     }
     rr(x, y, w, h, 3);
     ctx.fill();
-    ctx.strokeStyle = open ? '#2f9e6e' : '#4a2f1f';
+    ctx.strokeStyle = open ? '#1f8f62' : '#4a2410';
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let k = 1; k <= 2; k++) {
@@ -1033,28 +1097,37 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       }
     }
     ctx.stroke();
-    if (!open) {
-      // замок: дверь заперта, пока не зачищена комната
+    // иконка комнаты за дверью: 💀 босс, 👑 золотая комната
+    if (icon) {
+      ctx.font = '13px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(icon, p.x, p.y + 1);
+    } else if (!open) {
       ctx.fillStyle = '#ffe066';
       ctx.beginPath();
       ctx.arc(p.x, p.y, 3.2, 0, Math.PI * 2);
       ctx.fill();
-      return;
     }
+    if (!open) return;
     // стрелка внутри комнаты указывает на открытую дверь
     const v = DIRV[d];
-    const dist = 34 + Math.sin(t * 6) * 3;
+    const dist = 36 + Math.sin(t * 6) * 3;
     const ax = p.x - v[0] * dist;
     const ay = p.y - v[1] * dist;
     const px = -v[1];
     const py = v[0];
     ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#2b1d3d';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(ax + v[0] * 9, ay + v[1] * 9);
     ctx.lineTo(ax - v[0] * 6 + px * 7, ay - v[1] * 6 + py * 7);
     ctx.lineTo(ax - v[0] * 6 - px * 7, ay - v[1] * 6 - py * 7);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
   }
 
   function drawPlayer() {
@@ -1141,62 +1214,147 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     return run.map.byKey.get(`${room.x + DIRV[d][0]},${room.y + DIRV[d][1]}`);
   }
 
+  function roomIcon(kind) {
+    if (kind === 'boss') return '💀';
+    if (kind === 'gold') return '👑';
+    return '';
+  }
+
   function drawHud() {
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
     rr(10, 10, 130, 40, 14);
     ctx.fill();
+    ctx.strokeStyle = '#5b3348';
+    ctx.lineWidth = 2;
+    rr(10, 10, 130, 40, 14);
+    ctx.stroke();
     for (let i = 0; i < run.stats.maxHp / 2; i++) {
       const full = run.hp >= (i + 1) * 2;
       const half = !full && run.hp > i * 2;
-      ctx.fillStyle = full || half ? '#ff5f8d' : 'rgba(255,95,141,0.2)';
+      ctx.fillStyle = full || half ? '#ff2e6e' : 'rgba(255,46,110,0.25)';
       ctx.font = '20px serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('♥', 26 + i * 18, 31);
     }
     if (run.shield > 0) {
-      ctx.fillStyle = '#ffb3d9';
+      ctx.fillStyle = '#7a2a6a';
       ctx.font = "bold 12px 'Nunito', sans-serif";
       ctx.fillText(`щит ${run.shield}`, 110, 30);
     }
-    // кнопка карты (в обучении скрыта)
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    rr(VIEW.w - 92, 10, 82, 40, 14);
-    ctx.fill();
-    ctx.fillStyle = '#5b3348';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     if (run.tut >= 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      rr(MM.x, MM.y, MM.w, MM.h, 10);
+      ctx.fill();
+      ctx.fillStyle = '#5b3348';
       ctx.font = "bold 13px 'Nunito', sans-serif";
-      ctx.fillText('Обучение', VIEW.w - 51, 30);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Обучение', MM.x + MM.w / 2, MM.y + MM.h / 2);
     } else {
-      ctx.font = "bold 12px 'Nunito', sans-serif";
-      ctx.fillText(`Этаж ${run.floor}/${FLOORS}`, VIEW.w - 51, 22);
-      ctx.fillStyle = '#7a4fb0';
-      ctx.font = "800 11px 'Nunito', sans-serif";
-      ctx.fillText('КАРТА ▸', VIEW.w - 51, 37);
+      drawMiniMap();
     }
 
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
     let ix = 14;
     for (const it of run.items.slice(-10)) {
       ctx.fillStyle = it.col;
       ctx.beginPath();
       ctx.arc(ix + 8, RY1 + 22, 8, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = '#2b1d3d';
+      ctx.font = "bold 11px 'Nunito', sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillText(it.glyph, ix + 8, RY1 + 22);
+      ctx.textAlign = 'left';
       ix += 20;
     }
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "bold 12px 'Nunito', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText(run.tut >= 0 ? 'Обучение' : `Этаж ${run.floor}/${FLOORS}`, VIEW.w / 2, RY1 + 22);
+    ctx.textAlign = 'left';
   }
 
+  // мини-карта: окно 5x3 вокруг текущей комнаты, показывает только известные комнаты
+  function drawMiniMap() {
+    const map = run.map;
+    const cur = run.room;
+    ctx.fillStyle = 'rgba(43,29,61,0.85)';
+    rr(MM.x, MM.y, MM.w, MM.h, 10);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    rr(MM.x, MM.y, MM.w, MM.h, 10);
+    ctx.stroke();
+    const STEP = 16;
+    const SZ = 12;
+    const centerOf = (dx, dy) => ({
+      x: MM.x + MM.w / 2 + dx * STEP,
+      y: MM.y + MM.h / 2 + dy * STEP,
+    });
+    const known = (r) => r.visited || Object.keys(r.doors).some((d) => r.doors[d] && neighborOf(r, d) && neighborOf(r, d).visited);
+    ctx.strokeStyle = '#c9b8ff';
+    ctx.lineWidth = 2;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const r = map.byKey.get(`${cur.x + dx},${cur.y + dy}`);
+        if (!r || !known(r)) continue;
+        for (const d of ['e', 's']) {
+          const n = r.doors[d] ? neighborOf(r, d) : null;
+          if (!n || !known(n) || Math.abs(n.x - cur.x) > 2 || Math.abs(n.y - cur.y) > 1) continue;
+          const a = centerOf(dx, dy);
+          const b = centerOf(n.x - cur.x, n.y - cur.y);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const r = map.byKey.get(`${cur.x + dx},${cur.y + dy}`);
+        if (!r || !known(r)) continue;
+        const c = centerOf(dx, dy);
+        ctx.fillStyle = r.visited ? (r.kind === 'start' ? '#9ff0c0' : r.kind === 'boss' ? '#ff7ab8' : r.kind === 'gold' ? '#ffd54a' : '#b79bf0') : 'rgba(255,255,255,0.4)';
+        rr(c.x - SZ / 2, c.y - SZ / 2, SZ, SZ, 3);
+        ctx.fill();
+        if (r === cur) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          rr(c.x - SZ / 2 - 2, c.y - SZ / 2 - 2, SZ + 4, SZ + 4, 4);
+          ctx.stroke();
+        }
+        const icon = roomIcon(r.kind);
+        if (icon) {
+          ctx.font = '10px serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#2b1d3d';
+          ctx.fillText(icon, c.x, c.y + 0.5);
+        }
+      }
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "bold 9px 'Nunito', sans-serif";
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${run.floor}/${FLOORS} · карта`, MM.x + 5, MM.y + 4);
+    ctx.textBaseline = 'middle';
+  }
+
+  // полная карта этажа: открывается нажатием на мини-карту
   function drawMap() {
     const map = run.map;
-    ctx.fillStyle = 'rgba(30,14,50,0.9)';
+    ctx.fillStyle = 'rgba(30,14,50,0.92)';
     ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
     ctx.font = "800 18px 'Nunito', sans-serif";
-    ctx.fillText(`Карта: этаж ${run.floor}/${FLOORS}`, VIEW.w / 2, 40);
+    ctx.fillText(`Карта: этаж ${run.floor}/${FLOORS}`, VIEW.w / 2, 36);
 
     const xs = map.rooms.map((r) => r.x);
     const ys = map.rooms.map((r) => r.y);
@@ -1206,52 +1364,53 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     const rows = Math.max(...ys) - minY + 1;
     const STEP = 44;
     const SQ = 30;
-    const ox = VIEW.w / 2 - ((cols - 1) * STEP) / 2;
-    const oy = 250 - ((rows - 1) * STEP) / 2;
+    const ox = VIEW.w / 2 - ((cols - 1) * STEP) / 2 - SQ / 2;
+    const oy = 230 - ((rows - 1) * STEP) / 2 - SQ / 2;
     const cx = (r) => ox + (r.x - minX) * STEP;
     const cy = (r) => oy + (r.y - minY) * STEP;
-    const known = (r) => r.visited || Object.keys(r.doors).some((d) => r.doors[d] && neighborOf(r, d) && neighborOf(r, d).visited);
 
-    // проходы между известными комнатами
-    ctx.strokeStyle = '#8a7aa6';
+    ctx.strokeStyle = '#c9b8ff';
     ctx.lineWidth = 4;
     for (const r of map.rooms) {
       for (const d of ['e', 's']) {
         const n = r.doors[d] ? neighborOf(r, d) : null;
-        if (!n || !(r.visited || n.visited)) continue;
+        if (!n) continue;
         ctx.beginPath();
         ctx.moveTo(cx(r) + SQ / 2, cy(r) + SQ / 2);
         ctx.lineTo(cx(n) + SQ / 2, cy(n) + SQ / 2);
         ctx.stroke();
       }
     }
-    ctx.font = "bold 16px 'Nunito', sans-serif";
     for (const r of map.rooms) {
-      if (!known(r)) continue;
-      let fill = 'rgba(255,255,255,0.22)';
-      let glyph = '?';
-      if (r.visited) {
-        fill = r.kind === 'start' ? '#9ff0c0' : r.kind === 'boss' ? '#ff7ab8' : '#b79bf0';
-        glyph = r.kind === 'boss' ? '♛' : r.kind === 'start' ? '⌂' : '';
-      }
+      let fill = '#e6dcff';
+      if (r.visited) fill = r.kind === 'start' ? '#9ff0c0' : r.kind === 'boss' ? '#ff7ab8' : r.kind === 'gold' ? '#ffd54a' : '#b79bf0';
       ctx.fillStyle = fill;
       rr(cx(r), cy(r), SQ, SQ, 6);
       ctx.fill();
       if (r === run.room) {
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        rr(cx(r) - 3, cy(r) - 3, SQ + 6, SQ + 6, 8);
+        ctx.lineWidth = 4;
+        rr(cx(r) - 4, cy(r) - 4, SQ + 8, SQ + 8, 8);
         ctx.stroke();
       }
-      if (glyph) {
+      const icon = roomIcon(r.kind);
+      if (icon) {
+        ctx.font = '17px serif';
         ctx.fillStyle = '#2b1d3d';
-        ctx.fillText(glyph, cx(r) + SQ / 2, cy(r) + SQ / 2 + 1);
+        ctx.fillText(icon, cx(r) + SQ / 2, cy(r) + SQ / 2 + 1);
+      } else if (!r.visited) {
+        ctx.font = "bold 16px 'Nunito', sans-serif";
+        ctx.fillStyle = '#5b3348';
+        ctx.fillText('?', cx(r) + SQ / 2, cy(r) + SQ / 2 + 1);
       }
     }
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.font = "600 12px 'Nunito', sans-serif";
-    ctx.fillText('Белая рамка - ты здесь · ♛ - босс · ? - не исследовано', VIEW.w / 2, 420);
-    ctx.fillText('Нажми, чтобы вернуться', VIEW.w / 2, 446);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "700 13px 'Nunito', sans-serif";
+    ctx.fillText('💀 босс   👑 золотая комната   ? не исследовано', VIEW.w / 2, 420);
+    ctx.fillText('Белая рамка - ты здесь', VIEW.w / 2, 442);
+    ctx.font = "800 14px 'Nunito', sans-serif";
+    ctx.fillStyle = '#ffe066';
+    ctx.fillText('Нажми, чтобы вернуться', VIEW.w / 2, 466);
   }
 
   function drawBanner(text) {
@@ -1276,32 +1435,45 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     return steps[Math.max(0, Math.min(4, run.tut))];
   }
 
+  function pickRect(i, n) {
+    const w = n === 2 ? 132 : 96;
+    const h = n === 2 ? 170 : 150;
+    const gap = n === 2 ? 22 : 14;
+    const x0 = (VIEW.w - (n * w + (n - 1) * gap)) / 2;
+    return { x: x0 + i * (w + gap), y: 160, w, h };
+  }
+
   function drawPick() {
-    ctx.fillStyle = 'rgba(30,14,50,0.55)';
+    const n = run.pickOpts.length;
+    ctx.fillStyle = 'rgba(30,14,50,0.7)';
     ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
-    ctx.font = "800 18px 'Nunito', sans-serif";
-    ctx.fillText('Выбери предмет', VIEW.w / 2, 130);
+    ctx.font = "800 17px 'Nunito', sans-serif";
+    ctx.fillText(run.pickTitle || 'Выбери предмет', VIEW.w / 2, 128);
     run.pickOpts.forEach((it, i) => {
-      const x = 22 + i * 110;
-      const y = 160;
-      ctx.fillStyle = 'rgba(255,255,255,0.96)';
-      rr(x, y, 96, 150, 16);
+      const b = pickRect(i, n);
+      ctx.fillStyle = '#fffdf7';
+      rr(b.x, b.y, b.w, b.h, 16);
       ctx.fill();
+      ctx.strokeStyle = it.col;
+      ctx.lineWidth = 3;
+      rr(b.x, b.y, b.w, b.h, 16);
+      ctx.stroke();
       ctx.fillStyle = it.col;
       ctx.beginPath();
-      ctx.arc(x + 48, y + 40, 22, 0, Math.PI * 2);
+      ctx.arc(b.x + b.w / 2, b.y + 40, 24, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.font = '22px serif';
-      ctx.fillText(it.glyph, x + 48, y + 41);
+      ctx.font = '24px serif';
+      ctx.fillText(it.glyph, b.x + b.w / 2, b.y + 41);
+      ctx.fillStyle = '#2b1d3d';
+      ctx.font = "800 13px 'Nunito', sans-serif";
+      wrapText(it.name, b.x + b.w / 2, b.y + 84, b.w - 12, 15);
       ctx.fillStyle = '#5b3348';
-      ctx.font = "800 12px 'Nunito', sans-serif";
-      wrapText(it.name, x + 48, y + 80, 86, 14);
-      ctx.fillStyle = '#8a6478';
-      ctx.font = "600 11px 'Nunito', sans-serif";
-      wrapText(it.desc, x + 48, y + 112, 86, 13);
+      ctx.font = "700 12px 'Nunito', sans-serif";
+      wrapText(it.desc, b.x + b.w / 2, b.y + 114, b.w - 12, 14);
     });
   }
 
@@ -1424,9 +1596,9 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     }
     const q = toLogical(e.clientX, e.clientY);
     if (run.state === 'pick') {
-      for (let i = 0; i < 3; i++) {
-        const x = 22 + i * 110;
-        if (q.x >= x && q.x <= x + 96 && q.y >= 160 && q.y <= 310) {
+      for (let i = 0; i < run.pickOpts.length; i++) {
+        const b = pickRect(i, run.pickOpts.length);
+        if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) {
           choose(i);
           return;
         }
@@ -1434,7 +1606,7 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       return;
     }
     if (run.state !== 'play') return;
-    if (run.tut < 0 && q.x >= VIEW.w - 92 && q.x <= VIEW.w - 10 && q.y >= 10 && q.y <= 50) {
+    if (run.tut < 0 && q.x >= MM.x && q.x <= MM.x + MM.w && q.y >= MM.y && q.y <= MM.y + MM.h) {
       run.showMap = true;
       joy = null;
       return;
@@ -1542,6 +1714,14 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
           run.tut = 4;
           nextFloor();
         }
+      },
+      enterKind: (kind) => {
+        const r = run && run.map.rooms.find((x) => x.kind === kind);
+        if (r) enterRoom(r, null);
+        return !!r;
+      },
+      showMap: (v) => {
+        if (run) run.showMap = v;
       },
       tutorialStep: () => (run ? run.tut : -1),
       floor: () => (run ? run.floor : 0),
