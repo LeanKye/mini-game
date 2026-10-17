@@ -784,4 +784,22 @@ function init() {
   }
 }
 
+// Игра на телефоне: без зума жестами, двойного тапа-зума и контекстного меню
+['gesturestart', 'gesturechange', 'gestureend'].forEach((t) =>
+  document.addEventListener(t, (e) => e.preventDefault(), { passive: false })
+);
+let lastTapAt = 0;
+document.addEventListener(
+  'touchend',
+  (e) => {
+    const now = Date.now();
+    if (now - lastTapAt < 320) e.preventDefault();
+    lastTapAt = now;
+  },
+  { passive: false }
+);
+document.addEventListener('contextmenu', (e) => {
+  if (document.querySelector('.screen--game:not(.hidden)')) e.preventDefault();
+});
+
 init();

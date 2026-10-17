@@ -1,16 +1,25 @@
 import { spriteCanvas } from './sprites.js';
 
 const VIEW = { w: 360, h: 480 };
-const MM = { x: VIEW.w - 98, y: 8, w: 88, h: 58 };
-const RX0 = 14;
-const RX1 = 346;
 const RY0 = 70;
 const RY1 = 440;
 const DOOR = 56;
 const INSET = 12;
 const FLOORS = 3;
-const CX = (RX0 + RX1) / 2;
 const CY = (RY0 + RY1) / 2;
+// ширина поля зависит от ориентации: в landscape комната растягивается по ширине экрана
+let MM;
+let RX0;
+let RX1;
+let CX;
+function setLayout(w) {
+  VIEW.w = w;
+  RX0 = 14;
+  RX1 = w - 14;
+  CX = (RX0 + RX1) / 2;
+  MM = { x: w - 98, y: 8, w: 88, h: 58 };
+}
+setLayout(360);
 const OPP = { n: 's', s: 'n', w: 'e', e: 'w' };
 const DIRV = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] };
 
@@ -237,17 +246,6 @@ function makeObstacles(rnd, floor) {
   return out;
 }
 
-function rrG(g, x, y, w, h, r) {
-  const k = Math.min(r, w / 2, h / 2);
-  g.beginPath();
-  g.moveTo(x + k, y);
-  g.arcTo(x + w, y, x + w, y + h, k);
-  g.arcTo(x + w, y + h, x, y + h, k);
-  g.arcTo(x, y + h, x, y, k);
-  g.arcTo(x, y, x + w, y, k);
-  g.closePath();
-}
-
 function roomCache(room) {
   if (room.cache) return room.cache;
   const c = document.createElement('canvas');
@@ -315,20 +313,33 @@ function roomCache(room) {
     }
   }
   g.stroke();
-  // препятствия: каменные блоки с объёмом
+  // препятствия: деревянные ящики с досками, уголками и крестом
   for (const o of room.obstacles) {
-    g.fillStyle = 'rgba(40,20,70,0.35)';
+    g.fillStyle = 'rgba(40,20,70,0.45)';
     g.beginPath();
-    g.ellipse(o.x + o.w / 2, o.y + o.h + 3, o.w * 0.55, 5, 0, 0, Math.PI * 2);
+    g.ellipse(o.x + o.w / 2, o.y + o.h + 4, o.w * 0.55, 6, 0, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = gold ? '#c48a2a' : '#8f7bbf';
-    rrG(g, o.x, o.y, o.w, o.h, 6);
-    g.fillStyle = gold ? '#ffe39a' : '#cdbcf5';
-    rrG(g, o.x, o.y, o.w, 7, 6);
-    g.strokeStyle = gold ? '#6b4308' : '#3e2a66';
-    g.lineWidth = 2;
-    rrG(g, o.x, o.y, o.w, o.h, 6);
+    g.fillStyle = gold ? '#e8a23c' : '#b07238';
+    g.fillRect(o.x, o.y, o.w, o.h);
+    g.fillStyle = gold ? '#ffd27a' : '#d89a5c';
+    g.fillRect(o.x + 3, o.y + 3, o.w - 6, 4);
+    g.fillStyle = '#5a3418';
+    for (let k = 1; k < 3; k++) g.fillRect(o.x, o.y + (o.h * k) / 3 - 1, o.w, 2);
+    g.strokeStyle = gold ? '#8a5410' : '#6b3e1c';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(o.x + 4, o.y + 4);
+    g.lineTo(o.x + o.w - 4, o.y + o.h - 4);
+    g.moveTo(o.x + o.w - 4, o.y + 4);
+    g.lineTo(o.x + 4, o.y + o.h - 4);
     g.stroke();
+    g.fillStyle = '#3d2412';
+    for (const [px, py] of [[o.x, o.y], [o.x + o.w - 5, o.y], [o.x, o.y + o.h - 5], [o.x + o.w - 5, o.y + o.h - 5]]) {
+      g.fillRect(px, py, 5, 5);
+    }
+    g.strokeStyle = '#2b1a0c';
+    g.lineWidth = 2;
+    g.strokeRect(o.x + 1, o.y + 1, o.w - 2, o.h - 2);
   }
   room.cache = c;
   return c;
@@ -351,6 +362,24 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
   let joy = null;
   const keys = {};
 
+  function relayout(newW) {
+    const oldRX0 = RX0;
+    const oldW = RX1 - RX0;
+    setLayout(newW);
+    const ratio = (RX1 - RX0) / oldW;
+    const mapX = (x) => RX0 + (x - oldRX0) * ratio;
+    if (run) {
+      run.player.x = mapX(run.player.x);
+      run.tears = [];
+      run.bullets = [];
+      for (const room of run.map.rooms) {
+        room.cache = null;
+        for (const o of room.obstacles) o.x = mapX(o.x);
+        for (const e of room.enemies) e.x = mapX(e.x);
+      }
+    }
+  }
+
   function setScale() {
     const rect = canvas.getBoundingClientRect();
     const cssW = rect.width || VIEW.w;
@@ -359,9 +388,11 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     canvas.height = Math.round(cssH * 2);
     W = canvas.width;
     H = canvas.height;
-    scale = Math.min(canvas.width / VIEW.w, canvas.height / VIEW.h);
-    offX = (canvas.width - VIEW.w * scale) / 2;
-    offY = (canvas.height - VIEW.h * scale) / 2;
+    const newW = Math.max(360, Math.min(1600, Math.round(VIEW.h * (W / H))));
+    if (newW !== VIEW.w) relayout(newW);
+    scale = Math.min(W / VIEW.w, H / VIEW.h);
+    offX = (W - VIEW.w * scale) / 2;
+    offY = (H - VIEW.h * scale) / 2;
   }
 
   function newRun(withTutorial) {
@@ -1029,6 +1060,9 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       last = 0;
       return;
     }
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && Math.abs(rect.width * 2 - canvas.width) > 1) setScale();
+    else if (rect.height && Math.abs(rect.height * 2 - canvas.height) > 1) setScale();
     const dt = last ? Math.min(0.033, (ts - last) / 1000) : 1 / 60;
     last = ts;
     acc += dt;
