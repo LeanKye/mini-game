@@ -311,6 +311,15 @@ async function main() {
     await page.keyboard.up('s');
     const floorAfterDoor = await page.evaluate(() => window.__secureOsTest.rogue().floor());
     if (floorAfterDoor !== 1) throw new Error('Уровень 4: после выбора предмета дверь внизу не ведёт на этаж 1');
+    const items1 = await page.evaluate(() => window.__secureOsTest.rogue().items());
+    if (items1 !== 1) throw new Error('Уровень 4: после обучения должен быть ровно 1 предмет, получили ' + items1);
+    await page.evaluate(() => window.__secureOsTest.rogue().die());
+    await page.waitForFunction(
+      () => window.__secureOsTest.rogue().state() === 'play' && window.__secureOsTest.rogue().floor() === 1 && window.__secureOsTest.rogue().items() === 1,
+      null,
+      { timeout: 8000 }
+    );
+    results.push('✓ Уровень 4: после смерти чекпоинт сохраняет этаж и предметы');
     await page.evaluate(() => window.__secureOsTest.rogue().skipTutorial());
     await page.waitForFunction(() => window.__secureOsTest.rogue().floor() === 1, null, { timeout: 5000 }).catch(() => null);
     const floorAfterSkip = await page.evaluate(() => window.__secureOsTest.rogue().floor());

@@ -359,6 +359,8 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
   let acc = 0;
   let stepN = 0;
   let run = null;
+  // чекпоинт: начало последнего пройденного этажа (предметы и синергии сохраняются)
+  let checkpoint = null;
   let joy = null;
   const keys = {};
 
@@ -395,18 +397,20 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     offY = (H - VIEW.h * scale) / 2;
   }
 
-  function newRun(withTutorial) {
+  function newRun(withTutorial, cp = null) {
     const rnd = lcg((Date.now() ^ (stepN * 7919)) >>> 0);
-    const floor = withTutorial ? 0 : 1;
-    const map = withTutorial ? makeTutorialMap() : genFloor(1, rnd);
+    const floor = cp ? cp.floor : withTutorial ? 0 : 1;
+    const map = withTutorial ? makeTutorialMap() : genFloor(floor, rnd);
+    const items = cp ? cp.items.slice() : [];
+    const stats = computeStats(items);
     run = {
       rnd,
       floor,
       map,
       room: null,
-      items: [],
-      stats: computeStats([]),
-      hp: 6,
+      items,
+      stats,
+      hp: stats.maxHp,
       shield: 0,
       invuln: 0,
       dash: { t: 0, cd: 0, dx: 0, dy: 1, rammed: new Set() },
@@ -424,17 +428,23 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
       pickOpts: [],
       pickNext: false,
       tut: withTutorial ? 0 : -1,
-      seenSyn: new Set(),
+      seenSyn: new Set(cp ? cp.seenSyn : []),
       shake: 0,
       dummy: null,
       lockT: 0,
       showMap: false,
     };
-      enterRoom(map.rooms[map.startIdx], null);
+    enterRoom(map.rooms[map.startIdx], null);
     if (withTutorial) {
       run.player.x = CX;
       run.player.y = RY1 - 70;
       if (onHint) onHint('Обучение: следуй подсказкам вверху');
+    } else if (cp) {
+      if (onHint) onHint(`Чекпоинт: этаж ${floor}, предметы сохранены`);
+    } else {
+      // без обучения сразу даём стартовый предмет, иначе баланс ломается
+      openPick(false, 3);
+      run.pickTitle = 'Выбери стартовый предмет';
     }
   }
 
@@ -446,9 +456,10 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
   function nextFloor() {
     run.floor += 1;
     run.tut = -1;
+    checkpoint = { floor: run.floor, items: run.items.slice(), seenSyn: [...run.seenSyn] };
     run.map = genFloor(run.floor, run.rnd);
     enterRoom(run.map.rooms[run.map.startIdx], null);
-    if (onHint) onHint(`Этаж ${run.floor}`);
+    if (onHint) onHint(`Этаж ${run.floor} · чекпоинт сохранён`);
   }
 
   function enterRoom(room, enteredFrom) {
@@ -1034,9 +1045,9 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     if (run.state === 'dead') {
       run.stateT -= dt;
       if (run.stateT <= 0) {
-        const tut = false;
-        newRun(tut);
-        if (onHint) onHint('Новый забег - новые предметы и комнаты');
+        // после смерти - с последнего чекпоинта, без обучения; если чекпоинта нет - заново
+        if (checkpoint) newRun(false, checkpoint);
+        else newRun(tutorial);
       }
       return;
     }
@@ -1534,9 +1545,9 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.font = "800 22px 'Nunito', sans-serif";
-    ctx.fillText('Забег окончен', VIEW.w / 2, VIEW.h / 2 - 10);
+    ctx.fillText(checkpoint ? 'Ты погиб' : 'Забег окончен', VIEW.w / 2, VIEW.h / 2 - 10);
     ctx.font = "600 14px 'Nunito', sans-serif";
-    ctx.fillText('Ничего, в следующий раз получится', VIEW.w / 2, VIEW.h / 2 + 16);
+    ctx.fillText(checkpoint ? `Возвращаемся к чекпоинту: этаж ${checkpoint.floor}` : 'Начинаем заново', VIEW.w / 2, VIEW.h / 2 + 16);
   }
 
   function render() {
@@ -1758,6 +1769,14 @@ export function createRogue(canvas, { onHint, onWin, tutorial = true } = {}) {
         if (run) run.showMap = v;
       },
       tutorialStep: () => (run ? run.tut : -1),
+      items: () => (run ? run.items.length : -1),
+      state: () => (run ? run.state : null),
+      die: () => {
+        if (!run) return;
+        run.invuln = 0;
+        run.shield = 0;
+        hurt(999);
+      },
       floor: () => (run ? run.floor : 0),
     },
   };
