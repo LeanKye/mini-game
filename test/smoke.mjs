@@ -295,6 +295,10 @@ async function main() {
     const canvas4 = await page.locator('#game-canvas').boundingBox();
     if (!canvas4 || canvas4.width < 100) throw new Error('Уровень 4: канвас не отрисован');
     if (!hudTitle4) throw new Error('Уровень 4: нет заголовка в HUD');
+    const payload4 = await page.evaluate(() => window.__secureOsTest.payload('game4'));
+    if (!payload4 || !/^\d{4}$/.test(payload4.code || '') || !Array.isArray(payload4.story) || payload4.story.length < 1) {
+      throw new Error('Уровень 4: награда не расшифровалась');
+    }
     results.push('✓ Уровень 4: roguelike запускается и рисует поле');
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);

@@ -75,6 +75,8 @@ export const CONFIG = {
       unlocked: true,
       gameId: 'game4',
       kind: 'roguelike',
+      puzzle: true,
+      puzzleType: 'lock',
       icon: '✦',
       intro:
         'Пройди три этажа подземелья. Комнаты и предметы каждый раз случайные, ' +
