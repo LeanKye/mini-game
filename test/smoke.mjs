@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 3) throw new Error(`Лобби: ожидалось 3 уровня, got ${levelCards}`);
+    if (levelCards !== 4) throw new Error(`Лобби: ожидалось 4 уровня, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
     if (lockedCards !== 0) throw new Error('Лобби: все уровни должны быть открыты');
-    results.push('✓ Лобби: 3 уровня, все открыты');
+    results.push('✓ Лобби: 4 уровня, все открыты');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -287,6 +287,15 @@ async function main() {
       throw new Error('Уровень 3: код после замка не совпал (' + code3 + ')');
     }
     results.push('✓ Уровень 3: код 2019 выдаётся после кодового замка');
+
+    await page.evaluate(() => window.__secureOsTest.startLevel('level4', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.waitForTimeout(800);
+    const hudTitle4 = (await page.textContent('#hud-title'))?.trim();
+    const canvas4 = await page.locator('#game-canvas').boundingBox();
+    if (!canvas4 || canvas4.width < 100) throw new Error('Уровень 4: канвас не отрисован');
+    if (!hudTitle4) throw new Error('Уровень 4: нет заголовка в HUD');
+    results.push('✓ Уровень 4: roguelike запускается и рисует поле');
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;

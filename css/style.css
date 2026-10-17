@@ -731,6 +731,7 @@ body {
 /* ── Разные карточки уровней ────────────────────────────── */
 .level-card[data-kind="defense"] { background: linear-gradient(160deg, #7fd6c8, #7a9be0); }
 .level-card[data-kind="rhythm"] { background: linear-gradient(160deg, #ff8ac2, #6a3fb0); }
+.level-card[data-kind="roguelike"] { background: linear-gradient(160deg, #3b2d6b, #1b1636); }
 .level-card__icon { font-size: 3.2rem; }
 
 /* ── Подстройка синхронизации (ритм) ────────────────────── */

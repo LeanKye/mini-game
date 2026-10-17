@@ -2,6 +2,7 @@ import { CONFIG } from './config.js';
 import { createPlatformer } from './game/platformer.js';
 import { createDefense } from './game/defense.js';
 import { createRhythm } from './game/rhythm.js';
+import { createRogue } from './game/rogue.js';
 import { getReward } from './rewards.js';
 
 const screens = {
@@ -119,6 +120,13 @@ function startGame(levelId = currentLevelId, withIntro = true) {
       onWin: handleWin,
     });
     el.hudTotal.textContent = String(game.getState().total);
+  } else if (kind === 'roguelike') {
+    updateTimer(0);
+    game = createRogue(el.canvas, {
+      onHint: showGameHint,
+      onWin: handleWin,
+      tutorial: true,
+    });
   } else if (kind === 'rhythm') {
     updateTimer(0);
     game = createRhythm(el.canvas, {
