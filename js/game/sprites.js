@@ -131,6 +131,55 @@ export const SPRITE_DATA = {
       '..oo.oo.oo..',
     ],
   },
+  thief: {
+    pal: {
+      o: '#0d0b1a', h: '#2c2648', H: '#463c70', e: '#7ff6ff', c: '#1f1a33', b: '#c9a227', w: '#0a0814',
+    },
+    rows: [
+      'oooooooo',
+      'ohhhhhho',
+      'ohHHHHho',
+      'oheeeeho',
+      'ohhhhhho',
+      'occcccco',
+      'ocbbbbco',
+      'occcccco',
+      'occcccco',
+      'occ..cco',
+      'owo..owo',
+      'oo....oo',
+    ],
+  },
+  guard: {
+    pal: {
+      o: '#0d0b1a', k: '#1d3a6e', y: '#ffd166', s: '#f6c9a8', e: '#1a1030', d: '#274f8a', u: '#3f6fb8', w: '#1a1a2a',
+    },
+    rows: [
+      'oooooooo',
+      'okkkkkko',
+      'okkyykko',
+      'oossssoo',
+      'osesesso',
+      'osssssso',
+      'odduuddo',
+      'oduuuudo',
+      'oduuuudo',
+      'odd..ddo',
+      'owo..owo',
+      'oo....oo',
+    ],
+  },
+  gem: {
+    pal: { o: '#0d0b1a', G: '#2bb8d6', g: '#7ff6ff', w: '#ffffff' },
+    rows: [
+      '.oooo.',
+      'ogwwgo',
+      'oGGGGo',
+      'oGGGGo',
+      '.oGGo.',
+      '..oo..',
+    ],
+  },
 };
 
 // Проверка при загрузке: все строки спрайта одной ширины, все символы есть в палитре.

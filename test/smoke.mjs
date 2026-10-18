@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 4) throw new Error(`Лобби: ожидалось 4 уровня, got ${levelCards}`);
+    if (levelCards !== 5) throw new Error(`Лобби: ожидалось 5 уровней, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
     if (lockedCards !== 0) throw new Error('Лобби: все уровни должны быть открыты');
-    results.push('✓ Лобби: 4 уровня, все открыты');
+    results.push('✓ Лобби: 5 уровней, все открыты');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -325,6 +325,22 @@ async function main() {
     const floorAfterSkip = await page.evaluate(() => window.__secureOsTest.rogue().floor());
     if (floorAfterSkip !== 1) throw new Error('Уровень 4: пропуск обучения не переводит на этаж 1');
     results.push('✓ Уровень 4: обучение - выбор предмета открывает дверь, проход ведёт на этаж 1');
+    await page.evaluate(() => window.__secureOsTest.startLevel('level5', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.waitForTimeout(500);
+    const floor5 = await page.evaluate(() => window.__secureOsTest.stealth().floor());
+    if (floor5 !== 1) throw new Error('Уровень 5: старт должен быть на этаже 1');
+    const guards5 = await page.evaluate(() => window.__secureOsTest.stealth().guardStates());
+    if (guards5.length < 2) throw new Error('Уровень 5: охраны должно быть минимум 2');
+    if (await page.evaluate(() => window.__secureOsTest.stealth().caught())) throw new Error('Уровень 5: игрок не должен быть пойман в начале');
+    await page.evaluate(() => window.__secureOsTest.stealth().collectAll());
+    await page.waitForFunction(() => window.__secureOsTest.stealth().items() === 3, null, { timeout: 3000 });
+    await page.evaluate(() => window.__secureOsTest.stealth().teleportExit());
+    await page.waitForFunction(() => window.__secureOsTest.stealth().floor() === 2, null, { timeout: 5000 });
+    results.push('✓ Уровень 5 (стелс): охрана есть, добыча собирается, выход ведёт на этаж 2');
+    const payload5 = await page.evaluate(() => window.__secureOsTest.payload('game5'));
+    if (!payload5 || !/^\d{4}$/.test(payload5.code || '') || payload5.story.length !== 1) throw new Error('Уровень 5: награда не расшифровалась');
+    results.push('✓ Уровень 5: приз расшифровывается');
 
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);

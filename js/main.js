@@ -3,6 +3,7 @@ import { createPlatformer } from './game/platformer.js';
 import { createDefense } from './game/defense.js';
 import { createRhythm } from './game/rhythm.js';
 import { createRogue } from './game/rogue.js';
+import { createStealth } from './game/stealth.js';
 import { getReward } from './rewards.js';
 
 const screens = {
@@ -120,6 +121,12 @@ function startGame(levelId = currentLevelId, withIntro = true) {
       onWin: handleWin,
     });
     el.hudTotal.textContent = String(game.getState().total);
+  } else if (kind === 'stealth') {
+    updateTimer(0);
+    game = createStealth(el.canvas, {
+      onHint: showGameHint,
+      onWin: handleWin,
+    });
   } else if (kind === 'roguelike') {
     updateTimer(0);
     game = createRogue(el.canvas, {
@@ -340,6 +347,28 @@ function lockFeedback(guess, digits) {
   return { bulls, cows };
 }
 
+// статус каждой цифры попытки: bull - на своём месте, cow - есть в коде, но не здесь, miss - нет
+function lockStatuses(guess, digits) {
+  const n = digits.length;
+  const status = new Array(n).fill('miss');
+  const left = new Array(n).fill(true);
+  for (let i = 0; i < n; i++) {
+    if (guess[i] === digits[i]) {
+      status[i] = 'bull';
+      left[i] = false;
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    if (status[i] === 'bull') continue;
+    const j = digits.findIndex((d, k) => left[k] && d === guess[i]);
+    if (j >= 0) {
+      status[i] = 'cow';
+      left[j] = false;
+    }
+  }
+  return status;
+}
+
 function renderLock() {
   const p = puzzle;
   el.puzzleBoard.classList.add('lock');
@@ -378,22 +407,17 @@ function renderLock() {
   for (const h of p.history) {
     const row = document.createElement('div');
     row.className = 'lock__row';
-    const guess = document.createElement('span');
-    guess.className = 'lock__guess';
-    guess.textContent = h.guess.join('');
-    const dots = document.createElement('span');
-    dots.className = 'lock__dots';
-    for (let i = 0; i < h.bulls; i++) {
-      const d = document.createElement('b');
-      d.className = 'lock__dot lock__dot--bull';
-      dots.appendChild(d);
-    }
-    for (let i = 0; i < h.cows; i++) {
-      const d = document.createElement('b');
-      d.className = 'lock__dot lock__dot--cow';
-      dots.appendChild(d);
-    }
-    row.append(guess, dots);
+    const tiles = document.createElement('span');
+    tiles.className = 'lock__tiles';
+    const statuses = lockStatuses(h.guess, p.digits);
+    h.guess.forEach((digit, i) => {
+      const t = document.createElement('b');
+      t.className = `lock__tile lock__tile--${statuses[i]}`;
+      t.textContent = String(digit);
+      t.title = statuses[i] === 'bull' ? 'на своём месте' : statuses[i] === 'cow' ? 'есть, но не здесь' : 'цифры нет';
+      tiles.appendChild(t);
+    });
+    row.append(tiles);
     hist.appendChild(row);
   }
 
@@ -777,6 +801,7 @@ function init() {
       defense: () => (game && game.test ? game.test : null),
       rhythm: () => (game && game.test ? game.test : null),
       rogue: () => (game && game.test ? game.test : null),
+      stealth: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
       puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),
