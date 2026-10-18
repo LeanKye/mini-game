@@ -333,6 +333,17 @@ async function main() {
     const guards5 = await page.evaluate(() => window.__secureOsTest.stealth().guardStates());
     if (guards5.length < 2) throw new Error('Уровень 5: охраны должно быть минимум 2');
     if (await page.evaluate(() => window.__secureOsTest.stealth().caught())) throw new Error('Уровень 5: игрок не должен быть пойман в начале');
+    await page.evaluate(() => window.__secureOsTest.stealth().nearGuard(0));
+    await page.waitForFunction(
+      () => {
+        const t = window.__secureOsTest.stealth();
+        return t.caught() || t.guardStates().includes('chase');
+      },
+      null,
+      { timeout: 6000 }
+    );
+    results.push('✓ Уровень 5: охранник замечает вора вплотную и переходит в погоню');
+    await page.waitForFunction(() => !window.__secureOsTest.stealth().caught(), null, { timeout: 6000 });
     await page.evaluate(() => window.__secureOsTest.stealth().collectAll());
     await page.waitForFunction(() => window.__secureOsTest.stealth().items() === 3, null, { timeout: 3000 });
     await page.evaluate(() => window.__secureOsTest.stealth().teleportExit());

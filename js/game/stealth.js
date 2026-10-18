@@ -128,6 +128,17 @@ export function makeFloor(seed, floorIdx) {
         }
       }
     }
+    let lampCount = placed.filter((p) => p.t === TILE.LAMP).length;
+    for (const room of rooms.slice(1).sort(() => rnd() - 0.5)) {
+      if (lampCount >= 3) break;
+      for (let k = 0; k < 6 && lampCount < 3; k++) {
+        const p = randomInterior(room);
+        if (reserved.has(key(p.x, p.y)) || grid[p.y][p.x] !== TILE.FLOOR) continue;
+        grid[p.y][p.x] = TILE.LAMP;
+        placed.push({ x: p.x, y: p.y, t: TILE.LAMP });
+        lampCount++;
+      }
+    }
     return placed;
   };
   const reachableFrom = (sx, sy) => {
@@ -237,75 +248,72 @@ function bfsPath(grid, sx, sy, tx, ty) {
   return path.reverse();
 }
 
+function paintTile(g, grid, x, y) {
+  const v = grid[y][x];
+  const px = x * T;
+  const py = y * T;
+  const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+  if (v === TILE.WALL) {
+    g.fillStyle = '#23254a';
+    g.fillRect(px, py, T, T);
+    g.fillStyle = '#3b3f72';
+    g.fillRect(px, py, T, 4);
+    g.fillStyle = '#1a1c3a';
+    for (let r = 0; r < 2; r++) g.fillRect(px, py + 10 + r * 11, T, 2);
+    g.fillRect(px + ((hash % 2) ? 8 : 20), py + 4, 2, 6);
+    g.fillRect(px + ((hash % 2) ? 20 : 8), py + 16, 2, 6);
+    return;
+  }
+  const base = (x + y) % 2 === 0 ? '#4b5079' : '#444a72';
+  g.fillStyle = base;
+  g.fillRect(px, py, T, T);
+  g.fillStyle = 'rgba(255,255,255,0.05)';
+  g.fillRect(px, py, T, 2);
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  g.fillRect(px + (hash % 9) + 4, py + ((hash >> 3) % 9) + 4, 3, 2);
+  if (v === TILE.CRATE) {
+    g.fillStyle = '#9a6434';
+    g.fillRect(px + 2, py + 2, T - 4, T - 4);
+    g.fillStyle = '#c48a4e';
+    g.fillRect(px + 4, py + 4, T - 8, 4);
+    g.fillStyle = '#5a3818';
+    g.fillRect(px + 2, py + 12, T - 4, 2);
+    g.fillRect(px + 2, py + 20, T - 4, 2);
+    g.strokeStyle = '#3d2412';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(px + 5, py + 5);
+    g.lineTo(px + T - 5, py + T - 5);
+    g.moveTo(px + T - 5, py + 5);
+    g.lineTo(px + 5, py + T - 5);
+    g.stroke();
+  } else if (v === TILE.LAMP) {
+    g.fillStyle = '#2b2d45';
+    g.beginPath();
+    g.arc(px + T / 2, py + T / 2 + 4, 9, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#56597e';
+    g.fillRect(px + T / 2 - 2, py + 6, 4, T / 2);
+  } else if (v === TILE.EXIT) {
+    g.fillStyle = '#2e7d5b';
+    g.fillRect(px + 3, py + 3, T - 6, T - 6);
+    g.fillStyle = '#7dffc4';
+    g.beginPath();
+    g.moveTo(px + T / 2, py + 8);
+    g.lineTo(px + T - 8, py + T / 2);
+    g.lineTo(px + T / 2, py + T - 8);
+    g.lineTo(px + 8, py + T / 2);
+    g.closePath();
+    g.fill();
+  }
+}
+
 function drawMapCanvas(floor) {
   const c = document.createElement('canvas');
   c.width = MAP_W * T;
   c.height = MAP_H * T;
   const g = c.getContext('2d');
-  for (let y = 0; y < MAP_H; y++) {
-    for (let x = 0; x < MAP_W; x++) {
-      const v = floor.grid[y][x];
-      const px = x * T;
-      const py = y * T;
-      const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-      if (v === TILE.WALL) {
-        g.fillStyle = '#23254a';
-        g.fillRect(px, py, T, T);
-        g.fillStyle = '#3b3f72';
-        g.fillRect(px, py, T, 4);
-        g.fillStyle = '#1a1c3a';
-        for (let r = 0; r < 2; r++) {
-          g.fillRect(px, py + 10 + r * 11, T, 2);
-        }
-        g.fillRect(px + ((hash % 2) ? 8 : 20), py + 4, 2, 6);
-        g.fillRect(px + ((hash % 2) ? 20 : 8), py + 16, 2, 6);
-        continue;
-      }
-      // пол в шахматку с мягкими цветами
-      const base = (x + y) % 2 === 0 ? '#4b5079' : '#444a72';
-      g.fillStyle = base;
-      g.fillRect(px, py, T, T);
-      g.fillStyle = 'rgba(255,255,255,0.05)';
-      g.fillRect(px, py, T, 2);
-      g.fillStyle = 'rgba(0,0,0,0.18)';
-      g.fillRect(px + (hash % 9) + 4, py + ((hash >> 3) % 9) + 4, 3, 2);
-      if (v === TILE.CRATE) {
-        g.fillStyle = '#9a6434';
-        g.fillRect(px + 2, py + 2, T - 4, T - 4);
-        g.fillStyle = '#c48a4e';
-        g.fillRect(px + 4, py + 4, T - 8, 4);
-        g.fillStyle = '#5a3818';
-        g.fillRect(px + 2, py + 12, T - 4, 2);
-        g.fillRect(px + 2, py + 20, T - 4, 2);
-        g.strokeStyle = '#3d2412';
-        g.lineWidth = 3;
-        g.beginPath();
-        g.moveTo(px + 5, py + 5);
-        g.lineTo(px + T - 5, py + T - 5);
-        g.moveTo(px + T - 5, py + 5);
-        g.lineTo(px + 5, py + T - 5);
-        g.stroke();
-      } else if (v === TILE.LAMP) {
-        g.fillStyle = '#2b2d45';
-        g.beginPath();
-        g.arc(px + T / 2, py + T / 2 + 4, 9, 0, Math.PI * 2);
-        g.fill();
-        g.fillStyle = '#56597e';
-        g.fillRect(px + T / 2 - 2, py + 6, 4, T / 2);
-      } else if (v === TILE.EXIT) {
-        g.fillStyle = '#2e7d5b';
-        g.fillRect(px + 3, py + 3, T - 6, T - 6);
-        g.fillStyle = '#7dffc4';
-        g.beginPath();
-        g.moveTo(px + T / 2, py + 8);
-        g.lineTo(px + T - 8, py + T / 2);
-        g.lineTo(px + T / 2, py + T - 8);
-        g.lineTo(px + 8, py + T / 2);
-        g.closePath();
-        g.fill();
-      }
-    }
-  }
+  for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) paintTile(g, floor.grid, x, y);
   return c;
 }
 
@@ -731,7 +739,11 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
   }
 
   function throwStone() {
-    if (st.caught || st.won || st.stones <= 0) return;
+    if (st.caught || st.won) return;
+    if (st.stones <= 0) {
+      st.floaters.push({ text: 'Камней нет', x: st.player.x, y: st.player.y, life: 1 });
+      return;
+    }
     const p = st.player;
     let len = Math.hypot(p.fx, p.fy) || 1;
     const dx = p.fx / len;
@@ -767,7 +779,7 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
     best.on = false;
     st.floor.grid[best.y][best.x] = TILE.FLOOR;
     computeLight();
-    st.mapCanvas = drawMapCanvas(st.floor);
+    paintTile(st.mapCanvas.getContext('2d'), st.floor.grid, best.x, best.y);
     noise(best.x + 0.5, best.y + 0.5, 4.5);
     st.floaters.push({ text: 'Лампа разбита', x: best.x + 0.5, y: best.y + 0.5, life: 1.2 });
     return true;
@@ -1056,6 +1068,11 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
     ctx.fillText(label, VIEW.w - 22, 27);
     ctx.textAlign = 'left';
 
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = "bold 11px 'Nunito', sans-serif";
+    ctx.textAlign = 'left';
+    ctx.fillText(st.floor.mod.name, 16, 58);
+
     if (st.bannerT > 0 && st.banner) {
       ctx.fillStyle = 'rgba(255,77,94,0.85)';
       rr(VIEW.w / 2 - 130, 52, 260, 28, 12);
@@ -1166,6 +1183,13 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('resize', setScale);
+  const onBlur = () => {
+    keys.left = keys.right = keys.up = keys.down = false;
+    joy = null;
+  };
+  const onWindowPointerUp = (e) => onPointerUp(e);
+  window.addEventListener('blur', onBlur);
+  window.addEventListener('pointerup', onWindowPointerUp);
 
   setScale();
   newRun();
@@ -1188,6 +1212,8 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', setScale);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('pointerup', onWindowPointerUp);
     },
     win() {
       if (st) st.won = true;
@@ -1224,6 +1250,13 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
           st.caught = true;
           st.caughtT = 0.01;
         }
+      },
+      nearGuard: (i) => {
+        const g = st && st.guards[i];
+        if (!g) return false;
+        st.player.x = g.x;
+        st.player.y = g.y;
+        return true;
       },
       isLit: () => (st ? lightAt(st.player.x, st.player.y) >= LIT : null),
     },
