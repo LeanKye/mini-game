@@ -10,7 +10,10 @@ const MAX_W = 900;
 const MAP_W = 36;
 const MAP_H = 24;
 const FLOORS = 3;
-const FOV = 0.62;
+const FOV = 0.85;
+const LIT_PERIPHERY = 3.5;
+const CONTACT_D = 1.1;
+const GUARD_BODY = 0.5;
 const SEE_R = 7.5;
 const CLOSE_R = 2.2;
 const LIGHT_R = 4.5;
@@ -474,11 +477,17 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
     return false;
   }
 
-  function moveBody(e, dx, dy, r) {
+  function guardBlocks(x, y) {
+    return st.guards.some((g) => Math.hypot(g.x - x, g.y - y) < GUARD_BODY);
+  }
+
+  // Вор не может пройти сквозь охранника: тело охраны - препятствие
+  function moveBody(e, dx, dy, r, solidGuards) {
+    const bad = (x, y) => blockedCircle(x, y, r) || (solidGuards && guardBlocks(x, y));
     const nx = e.x + dx;
-    if (!blockedCircle(nx, e.y, r)) e.x = nx;
+    if (!bad(nx, e.y)) e.x = nx;
     const ny = e.y + dy;
-    if (!blockedCircle(e.x, ny, r)) e.y = ny;
+    if (!bad(e.x, ny)) e.y = ny;
   }
 
   function guardSees(g) {
@@ -487,8 +496,11 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
     const dy = p.y - g.y;
     const d = Math.hypot(dx, dy);
     if (d > SEE_R * st.seeMul) return false;
-    if (d > CLOSE_R && lightAt(p.x, p.y) < LIT) return false;
-    if (d > 0.9 && Math.abs(angleDiff(Math.atan2(dy, dx), g.face)) > FOV) return false;
+    const lit = lightAt(p.x, p.y) >= LIT;
+    if (d > CLOSE_R && !lit) return false;
+    // на свету охрана видит и по периферии (в радиусе LIT_PERIPHERY), в темноте - только в конусе
+    const peripheral = lit && d <= LIT_PERIPHERY;
+    if (d > 0.9 && !peripheral && Math.abs(angleDiff(Math.atan2(dy, dx), g.face)) > FOV) return false;
     return clearLine(st.floor.grid, g.x, g.y, p.x, p.y);
   }
 
@@ -584,10 +596,12 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
 
   function updateGuard(g, dt) {
     const p = st.player;
-    const sees = guardSees(g);
+    // контакт: вор вплотную к охраннику - обнаружен в любом случае
+    const contact = Math.hypot(p.x - g.x, p.y - g.y) < CONTACT_D;
+    const sees = contact || guardSees(g);
     if (sees) {
       const lit = lightAt(p.x, p.y) >= LIT;
-      g.sus = Math.min(1.25, g.sus + dt * (lit ? 1.4 : 0.8));
+      g.sus = Math.min(1.25, g.sus + (contact ? 2 : dt * (lit ? 1.4 : 0.8)));
       g.lastSeen = { x: p.x, y: p.y };
       g.lost = 0;
     } else {
@@ -694,7 +708,7 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
       vy /= len;
       p.fx = vx;
       p.fy = vy;
-      moveBody(p, vx * PLAYER_SPEED * dt, vy * PLAYER_SPEED * dt, PLAYER_R);
+      moveBody(p, vx * PLAYER_SPEED * dt, vy * PLAYER_SPEED * dt, PLAYER_R, true);
     }
   }
 
@@ -1257,6 +1271,35 @@ export function createStealth(canvas, { onHint, onWin } = {}) {
         st.player.x = g.x;
         st.player.y = g.y;
         return true;
+      },
+      setPlayer: (x, y) => {
+        if (st) {
+          st.player.x = x;
+          st.player.y = y;
+        }
+      },
+      probe: (i) => {
+        const g = st && st.guards[i];
+        if (!g) return null;
+        const p = st.player;
+        const dx = p.x - g.x;
+        const dy = p.y - g.y;
+        return {
+          d: Math.hypot(dx, dy),
+          lit: lightAt(p.x, p.y),
+          face: g.face,
+          ang: Math.atan2(dy, dx),
+          clear: clearLine(st.floor.grid, g.x, g.y, p.x, p.y),
+          sees: guardSees(g),
+          sus: g.sus,
+          state: g.state,
+        };
+      },
+      litTiles: () => {
+        const out = [];
+        if (!st) return out;
+        for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) if (lightAt(x + 0.5, y + 0.5) >= LIT && !SOLID.has(st.floor.grid[y][x])) out.push([x + 0.5, y + 0.5]);
+        return out;
       },
       isLit: () => (st ? lightAt(st.player.x, st.player.y) >= LIT : null),
     },
