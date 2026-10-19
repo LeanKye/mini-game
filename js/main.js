@@ -4,6 +4,7 @@ import { createDefense } from './game/defense.js';
 import { createRhythm } from './game/rhythm.js';
 import { createRogue } from './game/rogue.js';
 import { createStealth } from './game/stealth.js';
+import { createBrawl } from './game/brawl.js';
 import { getReward } from './rewards.js';
 
 const screens = {
@@ -121,6 +122,12 @@ function startGame(levelId = currentLevelId, withIntro = true) {
       onWin: handleWin,
     });
     el.hudTotal.textContent = String(game.getState().total);
+  } else if (kind === 'brawl') {
+    updateTimer(0);
+    game = createBrawl(el.canvas, {
+      onHint: showGameHint,
+      onWin: handleWin,
+    });
   } else if (kind === 'stealth') {
     updateTimer(0);
     game = createStealth(el.canvas, {
@@ -802,6 +809,7 @@ function init() {
       rhythm: () => (game && game.test ? game.test : null),
       rogue: () => (game && game.test ? game.test : null),
       stealth: () => (game && game.test ? game.test : null),
+      brawl: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
       puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),

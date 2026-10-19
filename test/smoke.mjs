@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 5) throw new Error(`Лобби: ожидалось 5 уровней, got ${levelCards}`);
+    if (levelCards !== 6) throw new Error(`Лобби: ожидалось 6 уровней, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
     if (lockedCards !== 0) throw new Error('Лобби: все уровни должны быть открыты');
-    results.push('✓ Лобби: 5 уровней, все открыты');
+    results.push('✓ Лобби: 6 уровней, все открыты');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -352,6 +352,24 @@ async function main() {
     const payload5 = await page.evaluate(() => window.__secureOsTest.payload('game5'));
     if (!payload5 || !/^\d{4}$/.test(payload5.code || '') || payload5.story.length !== 1) throw new Error('Уровень 5: награда не расшифровалась');
     results.push('✓ Уровень 5: приз расшифровывается');
+    await page.evaluate(() => window.__secureOsTest.startLevel('level6', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.waitForTimeout(400);
+    const stage6 = await page.evaluate(() => window.__secureOsTest.brawl().stage());
+    if (stage6 !== 1) throw new Error('Уровень 6: старт должен быть на первом этапе');
+    await page.evaluate(() => window.__secureOsTest.brawl().attack('jab'));
+    await page.waitForFunction(() => window.__secureOsTest.brawl().state() === 'attack', null, { timeout: 2000 });
+    await page.waitForFunction(() => window.__secureOsTest.brawl().state() === 'idle', null, { timeout: 3000 });
+    results.push('✓ Уровень 6 (бит-эм-ап): удар запускается и возвращает героиню в стойку');
+    for (const want of [2, 3, 4]) {
+      await page.evaluate(() => window.__secureOsTest.brawl().killAll());
+      await page.evaluate(() => window.__secureOsTest.brawl().nextStage());
+      await page.waitForFunction((w) => window.__secureOsTest.brawl().stage() === w, want, { timeout: 5000 });
+    }
+    results.push('✓ Уровень 6: три перехода (улица - крыши - святилище - храм) работают');
+    await page.evaluate(() => window.__secureOsTest.brawl().nextStage());
+    results.push('✓ Уровень 6: финальный этап в храме');
+
 
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
