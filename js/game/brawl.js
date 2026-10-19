@@ -35,28 +35,52 @@ const WEAPONS = [
 ];
 
 const ENEMY_DEF = {
-  grunt: { hp: 24, speed: 62, dmg: 8, reach: 40, windup: 0.55, cool: 1.1, scale: 3.6, sprite: 'guard', drop: 0.3 },
-  brute: { hp: 70, speed: 38, dmg: 15, reach: 50, windup: 0.85, cool: 1.8, scale: 4.2, sprite: 'charger', drop: 0.6 },
-  boss: { hp: 240, speed: 48, dmg: 14, reach: 60, windup: 0.7, cool: 1.2, scale: 5.2, sprite: 'queen', drop: 0 },
+  slime: { hp: 22, speed: 58, dmg: 8, reach: 38, windup: 0.5, cool: 1.1, scale: 3.4, sprite: 'blob', drop: 0.3 },
+  bat: { hp: 14, speed: 100, dmg: 6, reach: 34, windup: 0.35, cool: 0.9, scale: 3.6, sprite: 'bat', drop: 0.2, fly: 46 },
+  mushroom: { hp: 60, speed: 36, dmg: 14, reach: 46, windup: 0.8, cool: 1.7, scale: 4, sprite: 'spitter', drop: 0.6 },
+  boss: { hp: 280, speed: 44, dmg: 16, reach: 64, windup: 0.8, cool: 1.4, scale: 5.4, sprite: 'golem', drop: 0 },
 };
 
+// История: Рин, искательница приключений, спускается в подземелье за древним свитком.
 const STAGES = [
   {
-    id: 'street', title: 'Улица', sub: 'Ночной переулок', sky: ['#1b2440', '#3a2a5e'], accent: '#ffb86b',
-    waves: [['grunt', 'grunt', 'grunt'], ['grunt', 'grunt', 'brute'], ['grunt', 'grunt', 'grunt', 'brute']],
+    id: 'cave', title: 'Вход в пещеру', sub: 'Плющ, мох и сырость', sky: ['#0f2a24', '#1b4a40'],
+    intro: [
+      'Старая карта, потрёпанный рюкзак и слух, что под заброшенным монастырём спрятан древний свиток. Карта врёт, но я всё равно иду.',
+      'Меня зовут Рин. Я искательница приключений, и если в подземелье есть опасность, значит, там точно есть что-то стоящее.',
+      'Вход спрятан за плющом. Изнутри тянет холодом, а на стенах светится мох. Первые слизни уже ползут навстречу, будто давно ждали гостей.',
+    ],
+    waves: [['slime', 'slime', 'slime'], ['slime', 'bat', 'slime'], ['slime', 'slime', 'mushroom', 'bat']],
   },
   {
-    id: 'roofs', title: 'Крыши', sub: 'Над городом', sky: ['#281c4a', '#5b3b7a'], accent: '#ffd6f0',
-    waves: [['grunt', 'grunt', 'grunt', 'grunt'], ['grunt', 'brute', 'brute'], ['grunt', 'grunt', 'grunt', 'brute', 'brute']],
+    id: 'river', title: 'Подземная река', sub: 'Шум воды и эхо', sky: ['#0b1c33', '#1f4e6e'],
+    intro: [
+      'Подземная река шумит так, будто говорит. Летучие мыши срываются с потолка, и эхо разносит их писк по всем залам.',
+      'Чем глубже, тем чаще на стенах руны. Кто-то очень старался, чтобы сюда никто не добрался. Значит, я на верном пути.',
+    ],
+    waves: [['bat', 'bat', 'slime'], ['bat', 'mushroom', 'slime', 'slime'], ['bat', 'bat', 'bat', 'mushroom']],
   },
   {
-    id: 'shrine', title: 'Святилище', sub: 'Алые ворота', sky: ['#3a1c2a', '#9b3b3b'], accent: '#ffcf70',
-    waves: [['grunt', 'grunt', 'brute', 'grunt'], ['brute', 'brute', 'grunt', 'grunt'], ['grunt', 'grunt', 'grunt', 'grunt', 'brute']],
+    id: 'pillars', title: 'Залы колонн', sub: 'Камень шевелится', sky: ['#241a2e', '#4a3150'],
+    intro: [
+      'Колонны стоят ровными рядами, но карта перестала совпадать с залами. Камни сдвигаются, будто подземелье проверяет меня.',
+      'Гриб-страж у выхода оказался живым. Он щёлкнул зубами и больше не выглядит дружелюбным.',
+    ],
+    waves: [['mushroom', 'slime', 'slime', 'bat'], ['mushroom', 'mushroom', 'bat', 'slime'], ['mushroom', 'bat', 'mushroom', 'slime', 'slime']],
   },
   {
-    id: 'temple', title: 'Храм', sub: 'Финальная битва', sky: ['#0f0c1f', '#2b1d3f'], accent: '#ffe066',
-    boss: true, waves: [['grunt', 'grunt'], ['boss']],
+    id: 'temple', title: 'Храм в глубине', sub: 'Голем у свитка', sky: ['#14101f', '#2e2244'], boss: true,
+    intro: [
+      'Круглый зал, а в центре постамент. На нём свиток, и от него по стенам бегут тёплые строки.',
+      'Камень зашевелился. Между мной и свитком встаёт древний голем. Кажется, он охраняет не сокровище, а то, что написано внутри.',
+    ],
+    waves: [['slime', 'slime', 'bat'], ['boss']],
   },
+];
+
+const OUTRO = [
+  'Голем рассыпался на осколки. Свиток лёг мне в руки и стал тёплым, как живой.',
+  'Строки на нём начинают проявляться. Внизу подпись, которую я не могу прочитать. Но кто-то оставил её для меня.',
 ];
 
 function rr(ctx, x, y, w, h, r) {
@@ -102,58 +126,77 @@ function makeBackground(stage) {
   grad.addColorStop(1, stage.sky[1]);
   g.fillStyle = grad;
   g.fillRect(0, 0, WORLD_W, VIEW_H);
-  let seed = stage.id.length * 97;
+  let seed = stage.id.length * 97 + 13;
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
-  if (stage.id === 'street') {
-    for (let x = 0; x < WORLD_W; x += 60 + rnd() * 60) {
-      const h = 90 + rnd() * 110;
-      g.fillStyle = '#16203a';
-      g.fillRect(x, GROUND_TOP - h, 80, h);
-      for (let wy = GROUND_TOP - h + 12; wy < GROUND_TOP - 16; wy += 22) {
-        for (let wx = x + 10; wx < x + 70; wx += 22) {
-          g.fillStyle = rnd() > 0.45 ? '#ffd27a' : '#2a3556';
-          g.fillRect(wx, wy, 10, 12);
-        }
+  if (stage.id === 'cave') {
+    // сталактиты и мох
+    for (let x = 0; x < WORLD_W; x += 26 + rnd() * 30) {
+      const h = 20 + rnd() * 60;
+      g.fillStyle = '#0a1e1a';
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.lineTo(x + 14, 0);
+      g.lineTo(x + 7, h);
+      g.fill();
+      if (rnd() > 0.5) {
+        g.fillStyle = '#7fe0b4';
+        g.fillRect(x + 6, h, 2, 3);
       }
     }
-  } else if (stage.id === 'roofs') {
-    g.fillStyle = '#fff3d6';
-    g.beginPath();
-    g.arc(260, 70, 26, 0, Math.PI * 2);
-    g.fill();
-    for (let x = 0; x < WORLD_W; x += 150) {
-      g.fillStyle = '#2a1d44';
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = 'rgba(127,224,180,0.5)';
+      g.fillRect(rnd() * WORLD_W, GROUND_TOP - 4 - rnd() * 60, 2, 2);
+    }
+  } else if (stage.id === 'river') {
+    // вода, мосты и колонны над водой
+    g.fillStyle = '#1d5b84';
+    g.fillRect(0, GROUND_TOP - 30, WORLD_W, 26);
+    g.fillStyle = 'rgba(180,230,255,0.35)';
+    for (let x = 0; x < WORLD_W; x += 28) g.fillRect(x + (rnd() * 10), GROUND_TOP - 22 + rnd() * 8, 10, 2);
+    for (let x = 80; x < WORLD_W; x += 300) {
+      g.fillStyle = '#4d6d88';
+      g.fillRect(x, 60, 18, GROUND_TOP - 60);
+    }
+  } else if (stage.id === 'pillars') {
+    // ряды колонн с факелами
+    for (let x = 30; x < WORLD_W; x += 150) {
+      g.fillStyle = '#4a3a5a';
+      g.fillRect(x, 40, 26, GROUND_TOP - 40);
+      g.fillStyle = '#6a5a7a';
+      g.fillRect(x - 6, 36, 38, 8);
+      g.fillStyle = '#ffb347';
       g.beginPath();
-      g.moveTo(x, GROUND_TOP - 40);
-      g.lineTo(x + 75, GROUND_TOP - 110);
-      g.lineTo(x + 150, GROUND_TOP - 40);
+      g.arc(x + 13, 96, 4 + rnd() * 2, 0, Math.PI * 2);
       g.fill();
     }
-  } else if (stage.id === 'shrine') {
-    for (let x = 60; x < WORLD_W; x += 260) {
-      g.fillStyle = '#c23b3b';
-      g.fillRect(x, 60, 10, GROUND_TOP - 60);
-      g.fillRect(x + 110, 60, 10, GROUND_TOP - 60);
-      g.fillRect(x - 20, 56, 160, 12);
-      g.fillRect(x - 6, 40, 172, 14);
-    }
   } else {
-    for (let x = 40; x < WORLD_W; x += 180) {
-      g.fillStyle = '#3a2a55';
-      g.fillRect(x, 30, 26, GROUND_TOP - 30);
-      g.fillStyle = '#ffe066';
-      g.fillRect(x + 4, 40, 4, 40);
-      g.fillStyle = '#7a5aa8';
-      g.fillRect(x - 6, 26, 38, 8);
+    // храм: круглый алтарь, руны и свет
+    g.fillStyle = 'rgba(255,224,102,0.12)';
+    g.beginPath();
+    g.arc(WORLD_W / 2, GROUND_TOP - 10, 240, 0, Math.PI * 2);
+    g.fill();
+    for (let x = 60; x < WORLD_W; x += 220) {
+      g.fillStyle = '#3c2e56';
+      g.fillRect(x, 30, 22, GROUND_TOP - 30);
     }
+    for (let i = 0; i < 24; i++) {
+      g.strokeStyle = 'rgba(255,224,102,0.35)';
+      g.beginPath();
+      g.arc(rnd() * WORLD_W, 40 + rnd() * 100, 6 + rnd() * 6, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.fillStyle = '#4b3c66';
+    g.beginPath();
+    g.ellipse(WORLD_W / 2, GROUND_TOP + 30, 90, 24, 0, 0, Math.PI * 2);
+    g.fill();
   }
-  // земля-плитка
-  g.fillStyle = stage.id === 'temple' ? '#4a3b66' : '#3b3450';
+  // пол
+  g.fillStyle = stage.id === 'temple' ? '#4a3b66' : '#2e3a36';
   g.fillRect(0, GROUND_TOP, WORLD_W, VIEW_H - GROUND_TOP);
-  g.strokeStyle = 'rgba(255,255,255,0.08)';
+  g.strokeStyle = 'rgba(255,255,255,0.07)';
   g.lineWidth = 1;
   for (let y = GROUND_TOP; y < VIEW_H; y += 14) {
     g.beginPath();
@@ -221,6 +264,8 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     bg = makeBackground(stage);
     st = {
       stage,
+      cut: null,
+      outroDone: false,
       hero: {
         x: 80,
         y: 230,
@@ -255,7 +300,34 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       floaters: [],
       difficulty: 1 + index * 0.15,
     };
+    if (stage.intro && stage.intro.length) st.cut = { pages: stage.intro.slice(), i: 0, c: 0, onDone: null };
     if (onHint) onHint(`${stage.title}: ${stage.sub}`);
+  }
+
+  // Катсцена: текст печатается по буквам, нажатие сначала дописывает страницу, потом листает
+  function cutAdvance() {
+    const cut = st && st.cut;
+    if (!cut) return;
+    const text = cut.pages[cut.i];
+    if (cut.c < text.length) {
+      cut.c = text.length;
+      return;
+    }
+    cut.i += 1;
+    cut.c = 0;
+    if (cut.i >= cut.pages.length) cutFinish();
+  }
+
+  function cutFinish() {
+    const cut = st.cut;
+    st.cut = null;
+    if (cut && cut.onDone) cut.onDone();
+  }
+
+  function cutTick(dt) {
+    const cut = st.cut;
+    const text = cut.pages[cut.i];
+    cut.c = Math.min(text.length, cut.c + dt * 38);
   }
 
   function animOf(name) {
@@ -589,7 +661,10 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       return;
     }
     if (stageIdx === STAGES.length - 1) {
-      finishRun();
+      if (!st.outroDone) {
+        st.outroDone = true;
+        st.cut = { pages: OUTRO.slice(), i: 0, c: 0, onDone: finishRun };
+      }
     } else {
       st.transition = 2.4;
     }
@@ -618,6 +693,10 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     st.floaters.forEach((f) => (f.life -= dt));
     st.floaters = st.floaters.filter((f) => f.life > 0);
     if (st.hero.flashT > 0) st.hero.flashT -= dt;
+    if (st.cut) {
+      cutTick(dt);
+      return;
+    }
     if (st.dead > 0) {
       st.dead -= dt;
       if (st.dead <= 0) {
@@ -698,7 +777,8 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     const h = img.height * def.scale;
     const bob = e.state === 'dead' ? 0 : Math.sin(t * 6 + e.x) * 0.8;
     ctx.save();
-    ctx.translate(e.x - st.camX, e.y + bob);
+    const air = def.fly ? -def.fly * 0.5 + Math.sin(t * 9 + e.x) * 6 : 0;
+    ctx.translate(e.x - st.camX, e.y + bob + air);
     if (e.face > 0) ctx.scale(-1, 1);
     ctx.globalAlpha = e.state === 'dead' ? Math.max(0, e.deadT / 0.6) : 1;
     ctx.imageSmoothingEnabled = false;
@@ -757,6 +837,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     ctx.restore();
     drawHud(t);
     drawControls();
+    if (st.cut) drawDialogue();
     if (st.transition > 0) drawTitle(st.stage.title, st.stage.sub, 'Следующий этап');
     if (st.dead > 0) drawTitle('Поражение', 'Этап начнётся заново', null, 'rgba(60,8,24,0.6)');
     if (finished) drawTitle('Храм побеждён', 'Ты дошла до конца', null, 'rgba(20,40,30,0.55)');
@@ -838,6 +919,64 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     }
   }
 
+  function wrapWords(text, maxW) {
+    const lines = [];
+    let line = '';
+    for (const w of text.split(' ')) {
+      const test = line ? `${line} ${w}` : w;
+      if (ctx.measureText(test).width > maxW && line) {
+        lines.push(line);
+        line = w;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function drawDialogue() {
+    const cut = st.cut;
+    const full = cut.pages[cut.i];
+    const shown = full.slice(0, Math.floor(cut.c));
+    ctx.setTransform(scale, 0, 0, scale, offX, offY);
+    ctx.fillStyle = 'rgba(8,6,20,0.25)';
+    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+    const bx = 14;
+    const bw = VIEW.w - 28;
+    const bh = 112;
+    const by = VIEW.h - bh - 10;
+    ctx.fillStyle = 'rgba(18,12,36,0.94)';
+    rr(ctx, bx, by, bw, bh, 14);
+    ctx.fill();
+    ctx.strokeStyle = '#c9b8ff';
+    ctx.lineWidth = 2;
+    rr(ctx, bx, by, bw, bh, 14);
+    ctx.stroke();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffe066';
+    ctx.font = "bold 13px 'Nunito', sans-serif";
+    ctx.fillText(st.stage.title, bx + 14, by + 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "600 13px 'Nunito', sans-serif";
+    const lines = wrapWords(shown, bw - 28);
+    lines.slice(0, 5).forEach((ln, i) => ctx.fillText(ln, bx + 14, by + 42 + i * 17));
+    if (cut.c >= full.length) {
+      ctx.fillStyle = '#ffe066';
+      ctx.textAlign = 'right';
+      ctx.fillText('▶', bx + bw - 14, by + bh - 12);
+    }
+    // пропуск катсцены
+    ctx.fillStyle = 'rgba(18,12,36,0.85)';
+    rr(ctx, VIEW.w - 104, 10, 94, 24, 10);
+    ctx.fill();
+    ctx.fillStyle = '#c9b8ff';
+    ctx.font = "bold 11px 'Nunito', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('пропустить', VIEW.w - 57, 26);
+  }
+
   function drawTitle(title, sub, hint, bg2) {
     ctx.setTransform(scale, 0, 0, scale, offX, offY);
     ctx.fillStyle = bg2 || 'rgba(15,12,35,0.6)';
@@ -871,6 +1010,11 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     e.preventDefault();
     if (!st) return;
     const q = toLogical(e.clientX, e.clientY);
+    if (st.cut) {
+      if (q.x > VIEW.w - 110 && q.y < 40) cutFinish();
+      else cutAdvance();
+      return;
+    }
     for (const b of buttons) {
       if (Math.hypot(q.x - b.x, q.y - b.y) <= b.r + 6) {
         pressButton(b.id);
@@ -894,6 +1038,13 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
   const KEYMAP = { j: 'jab', k: 'kick', l: 'heavy', ' ': 'dash', shift: 'dash' };
   function onKeyDown(e) {
     const k = e.key.toLowerCase();
+    if (st && st.cut) {
+      if (['enter', ' ', 'j', 'k', 'l', 'z'].includes(k)) {
+        e.preventDefault();
+        cutAdvance();
+      }
+      return;
+    }
     if (k === 'arrowleft' || k === 'a') keys.left = true;
     else if (k === 'arrowright' || k === 'd') keys.right = true;
     else if (k === 'arrowup' || k === 'w') keys.up = true;
@@ -992,6 +1143,9 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
         }
       },
       hurtHero: (n) => st && hurtHero(n, st.hero.x),
+      skipCut: () => {
+        if (st && st.cut) cutFinish();
+      },
       attack: (k) => tryAttack(k),
       state: () => (st ? st.hero.state : null),
       weapon: () => (st && st.hero.weapon ? st.hero.weapon.id : null),

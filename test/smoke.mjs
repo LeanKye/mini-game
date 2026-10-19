@@ -355,6 +355,7 @@ async function main() {
     await page.evaluate(() => window.__secureOsTest.startLevel('level6', false));
     await page.waitForSelector('#screen-game:not(.hidden)');
     await page.waitForTimeout(400);
+    await page.evaluate(() => window.__secureOsTest.brawl().skipCut());
     const stage6 = await page.evaluate(() => window.__secureOsTest.brawl().stage());
     if (stage6 !== 1) throw new Error('Уровень 6: старт должен быть на первом этапе');
     await page.evaluate(() => window.__secureOsTest.brawl().attack('jab'));
@@ -362,11 +363,13 @@ async function main() {
     await page.waitForFunction(() => window.__secureOsTest.brawl().state() === 'idle', null, { timeout: 3000 });
     results.push('✓ Уровень 6 (бит-эм-ап): удар запускается и возвращает героиню в стойку');
     for (const want of [2, 3, 4]) {
+      await page.evaluate(() => window.__secureOsTest.brawl().skipCut());
       await page.evaluate(() => window.__secureOsTest.brawl().killAll());
       await page.evaluate(() => window.__secureOsTest.brawl().nextStage());
       await page.waitForFunction((w) => window.__secureOsTest.brawl().stage() === w, want, { timeout: 5000 });
     }
     results.push('✓ Уровень 6: три перехода (улица - крыши - святилище - храм) работают');
+    await page.evaluate(() => window.__secureOsTest.brawl().skipCut());
     await page.evaluate(() => window.__secureOsTest.brawl().nextStage());
     results.push('✓ Уровень 6: финальный этап в храме');
     await page.evaluate(() => window.__secureOsTest.forceWin());
