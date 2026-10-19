@@ -288,6 +288,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       },
       enemies: [],
       pickups: [],
+      crates: [],
       waves: stage.waves.slice(),
       waveNo: 0,
       spawnT: 0.9,
@@ -300,6 +301,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       floaters: [],
       difficulty: 1 + index * 0.15,
     };
+    st.crates = stage.boss ? [] : makeCrates();
     if (stage.intro && stage.intro.length) st.cut = { pages: stage.intro.slice(), i: 0, c: 0, onDone: null };
     if (onHint) onHint(`${stage.title}: ${stage.sub}`);
   }
@@ -328,6 +330,22 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     const cut = st.cut;
     const text = cut.pages[cut.i];
     cut.c = Math.min(text.length, cut.c + dt * 38);
+  }
+
+  function makeCrates() {
+    const out = [];
+    for (let i = 0; i < 3; i++) {
+      out.push({ x: 380 + i * 420 + Math.random() * 120, y: GROUND_TOP + 40 + ((i * 53) % 90), hp: 3, dead: false, flash: 0 });
+    }
+    return out;
+  }
+
+  // Разбитый ящик роняет два яблока: тронешь - восстановишь немного здоровья
+  function breakCrate(c) {
+    c.dead = true;
+    st.pickups.push({ kind: 'apple', x: c.x - 12, y: c.y });
+    st.pickups.push({ kind: 'apple', x: c.x + 12, y: c.y });
+    st.floaters.push({ text: 'Яблоки!', x: c.x, y: c.y - 50, life: 1.2, col: '#ff8fa3' });
   }
 
   function animOf(name) {
@@ -492,6 +510,15 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       damageEnemy(e, w.dmg * (COMBO_MUL[h.comboIdx] || 1), def.kb, def.stun);
       hitAny = true;
     }
+    for (const c of st.crates) {
+      if (c.dead) continue;
+      const dx = (c.x - h.x) * h.face;
+      if (dx < -8 || dx > w.reach) continue;
+      if (Math.abs(c.y - h.y) > 16) continue;
+      c.hp -= 1;
+      c.flash = 0.1;
+      if (c.hp <= 0) breakCrate(c);
+    }
     // оружие тратится только на попадании
     if (hitAny && h.weapon) {
       h.weapon.uses -= 1;
@@ -634,6 +661,12 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     const h = st.hero;
     st.pickups = st.pickups.filter((p) => {
       if (Math.abs(p.x - h.x) < 22 && Math.abs(p.y - h.y) < 16) {
+        if (p.kind === 'apple') {
+          const before = h.hp;
+          h.hp = Math.min(HERO_HP_MAX, h.hp + 15);
+          st.floaters.push({ text: `+${Math.round(h.hp - before)}`, x: h.x, y: h.y - 90, life: 1, col: '#9bff9b' });
+          return false;
+        }
         h.weapon = { ...p.w };
         st.floaters.push({ text: p.w.name, x: h.x, y: h.y - 90, life: 1.2, col: p.w.col });
         return false;
@@ -801,7 +834,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     const h = f.img.height * k;
     ctx.save();
     ctx.translate(e.x - st.camX, e.y + Math.sin(t * 6 + e.x) * 0.6);
-    if (e.face > 0) ctx.scale(-1, 1);
+    if (e.face < 0) ctx.scale(-1, 1);
     ctx.globalAlpha = e.state === 'dead' ? Math.max(0, e.deadT / 0.6) : 1;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(f.img, -w / 2, -h, w, h);
@@ -812,6 +845,27 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     }
     ctx.restore();
     return true;
+  }
+
+  function drawCrate(c) {
+    const x = c.x - st.camX;
+    const y = c.y;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 20, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = c.flash > 0 ? '#ffe6c2' : '#b07238';
+    rr(ctx, x - 18, y - 38, 36, 38, 4);
+    ctx.fill();
+    ctx.fillStyle = '#5a3418';
+    ctx.fillRect(x - 18, y - 26, 36, 2);
+    ctx.fillRect(x - 18, y - 14, 36, 2);
+    ctx.fillStyle = '#d89a5c';
+    ctx.fillRect(x - 15, y - 35, 30, 3);
+    ctx.strokeStyle = '#3d2412';
+    ctx.lineWidth = 2;
+    rr(ctx, x - 18, y - 38, 36, 38, 4);
+    ctx.stroke();
   }
 
   function drawEnemy(e, t) {
@@ -870,6 +924,16 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     if (bg) ctx.drawImage(bg, -st.camX, 0);
     // пикапы
     for (const p of st.pickups) {
+      if (p.kind === 'apple') {
+        const bob = Math.sin(t * 4 + p.x) * 2;
+        ctx.fillStyle = '#e53935';
+        ctx.beginPath();
+        ctx.arc(p.x - st.camX, p.y - 6 + bob, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#3fa34d';
+        ctx.fillRect(p.x - st.camX, p.y - 13 + bob, 2, 4);
+        continue;
+      }
       ctx.fillStyle = p.w.col;
       ctx.font = "bold 16px 'Nunito', sans-serif";
       ctx.textAlign = 'center';
@@ -877,6 +941,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     }
     // тени и враги, сортировка по глубине
     const drawables = [
+      ...st.crates.filter((c) => !c.dead).map((c) => ({ y: c.y, draw: () => drawCrate(c) })),
       ...st.enemies.map((e) => ({ y: e.y, draw: () => drawEnemy(e, t) })),
       { y: st.hero.y, draw: () => drawHero(t) },
     ].sort((a, b) => a.y - b.y);

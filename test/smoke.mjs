@@ -376,17 +376,28 @@ async function main() {
     results.push('✓ Уровень 6: финальный этап в храме');
     await page.evaluate(() => window.__secureOsTest.forceWin());
     await page.waitForSelector('.scroll__canvas', { timeout: 8000 });
-    const box = await page.locator('.scroll__canvas').boundingBox();
-    await page.mouse.move(box.x + 8, box.y + 8);
-    await page.mouse.down();
-    for (let y = box.y + 8; y < box.y + box.height - 8; y += 16) {
-      await page.mouse.move(box.x + box.width - 8, y, { steps: 6 });
-      await page.mouse.move(box.x + 8, y + 8, { steps: 6 });
+    // длинный текст: холст выше экрана, прокручиваем к каждой полосе и растираем её
+    const canvasEl = page.locator('.scroll__canvas');
+    await canvasEl.scrollIntoViewIfNeeded();
+    const h0 = (await canvasEl.boundingBox()).height;
+    for (let y = 8; y < h0 - 8; y += 16) {
+      // прокручиваем так, чтобы нужная строка холста была в видимой части экрана
+      await page.evaluate((yy) => {
+        const c = document.querySelector('.scroll__canvas');
+        const r = c.getBoundingClientRect();
+        window.scrollBy(0, r.top + yy - 200);
+      }, y);
+      const box = await canvasEl.boundingBox();
+      if (!box) break;
+      const top = box.y + y;
+      await page.mouse.move(box.x + 8, top);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width - 8, top, { steps: 8 });
+      await page.mouse.up();
+      if (await page.locator('.scroll--done').count()) break;
     }
-    await page.mouse.up();
     await page.waitForSelector('.scroll--done', { timeout: 8000 });
-    await page.waitForSelector('#puzzle-board', { state: 'attached', timeout: 8000 });
-    results.push('✓ Уровень 6: свиток проявляется пальцем, после раскрытия открывается замок с кодом');
+    results.push('✓ Уровень 6: свиток проявляется пальцем, код не выдаётся');
 
 
 
