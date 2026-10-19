@@ -22,11 +22,13 @@ const STUN_KNOCK = 40;
 const ATTACKS = {
   jab: { anim: 'jab', dmg: 6, reach: 46, hitAt: 0.05, hitDur: 0.12, stun: 0.18, kb: 22 },
   punch2: { anim: 'punch2', dmg: 7, reach: 50, hitAt: 0.06, hitDur: 0.14, stun: 0.2, kb: 30 },
-  punch3: { anim: 'punch3', dmg: 11, reach: 56, hitAt: 0.2, hitDur: 0.16, stun: 0.32, kb: 90 },
   kick: { anim: 'kick', dmg: 9, reach: 60, hitAt: 0.12, hitDur: 0.16, stun: 0.3, kb: 70 },
-  heavy: { anim: 'uppercut', dmg: 18, reach: 72, hitAt: 0.22, hitDur: 0.22, stun: 0.45, kb: 150 },
+  uppercut: { anim: 'uppercut', dmg: 14, reach: 72, hitAt: 0.22, hitDur: 0.22, stun: 0.45, kb: 150 },
 };
-const COMBO_NEXT = { jab: 'punch2', punch2: 'punch3' };
+// одна кнопка: удары идут цепочкой, каждый следующий сильнее
+const COMBO = ['jab', 'punch2', 'kick', 'uppercut'];
+const COMBO_MUL = [1, 1.25, 1.55, 2.0];
+const COMBO_WINDOW = 0.45;
 
 const WEAPONS = [
   { id: 'pipe', name: 'Труба', dmgMul: 1.6, reachAdd: 14, uses: 6, col: '#9aa3b8', glyph: '▬' },
@@ -251,11 +253,8 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
 
   function layoutButtons() {
     buttons.length = 0;
-    const r = 26;
-    buttons.push({ id: 'jab', label: 'A', x: VIEW.w - 56, y: VIEW.h - 58, r: 30, col: '#ff7ab8' });
-    buttons.push({ id: 'kick', label: 'B', x: VIEW.w - 116, y: VIEW.h - 40, r, col: '#7fd6ff' });
-    buttons.push({ id: 'heavy', label: 'C', x: VIEW.w - 56, y: VIEW.h - 118, r, col: '#ffcf70' });
-    buttons.push({ id: 'dash', label: '»', x: VIEW.w - 128, y: VIEW.h - 110, r: 22, col: '#c9b8ff' });
+    buttons.push({ id: 'attack', label: 'A', x: VIEW.w - 56, y: VIEW.h - 66, r: 32, col: '#ff7ab8' });
+    buttons.push({ id: 'dash', label: '»', x: VIEW.w - 130, y: VIEW.h - 58, r: 24, col: '#c9b8ff' });
   }
 
   function newStage(index) {
@@ -346,34 +345,29 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     return list.reduce((s, f) => s + f.dur, 0);
   }
 
-  function startAttack(key) {
+  function startAttack(idx) {
     const h = st.hero;
+    const key = COMBO[idx];
     const def = ATTACKS[key];
-    if (!def) return;
     h.state = 'attack';
+    h.comboIdx = idx;
     h.attack = key;
-    h.lastAttack = key;
     h.attackT = 0;
     h.hitDone = false;
+    h.queued = false;
     setAnim(h, def.anim);
-    if (key === 'heavy') h.combo = 0;
   }
 
-  function tryAttack(key) {
+  // Кнопка атаки: в окне после удара запускает следующий в цепочке, иначе начинает сначала
+  function tryAttack() {
     const h = st.hero;
     if (h.stun > 0 || h.state === 'dead' || h.state === 'dash') return;
     if (h.state === 'attack') {
-      // нажатие во время удара ставит следующий удар комбо в очередь
-      if (COMBO_NEXT[h.attack] === key) h.queued = key;
+      if (h.comboIdx < COMBO.length - 1) h.queued = true;
       return;
     }
-    if (h.comboT > 0 && COMBO_NEXT[h.lastAttack] === key) {
-      startAttack(key);
-      h.combo += 1;
-      return;
-    }
-    startAttack(key);
-    h.combo = 1;
+    const next = h.comboT > 0 ? (h.comboIdx + 1) % COMBO.length : 0;
+    startAttack(next);
   }
 
   function tryDash() {
@@ -445,15 +439,11 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       }
       if (h.attackT >= dur) {
         if (h.queued) {
-          const next = h.queued;
-          h.queued = null;
-          h.combo += 1;
-          startAttack(next);
-          h.comboT = 0.4;
+          startAttack(h.comboIdx + 1);
         } else {
           h.state = 'idle';
           h.attack = null;
-          h.comboT = 0.4;
+          h.comboT = COMBO_WINDOW;
           setAnim(h, 'idle');
         }
       }
@@ -498,7 +488,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       const dx = (e.x - h.x) * h.face;
       if (dx < -8 || dx > w.reach) continue;
       if (Math.abs(e.y - h.y) > 16) continue;
-      damageEnemy(e, w.dmg, def.kb, def.stun);
+      damageEnemy(e, w.dmg * (COMBO_MUL[h.comboIdx] || 1), def.kb, def.stun);
       hitAny = true;
     }
     // оружие тратится только на попадании
@@ -623,7 +613,8 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     h.stun = HURT_TIME;
     h.state = 'hurt';
     h.attack = null;
-    h.queued = null;
+    h.queued = false;
+    h.comboT = 0;
     h.x += Math.sign(h.x - fromX) * STUN_KNOCK * 0.3;
     setAnim(h, 'hurt');
     h.flashT = 0.2;
@@ -873,6 +864,11 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     ctx.font = "bold 12px 'Nunito', sans-serif";
     ctx.textAlign = 'left';
     ctx.fillText(`${st.stage.title} · волна ${st.waveNo}`, 170, 24);
+    if (st.hero.comboIdx > 0 && (st.hero.state === 'attack' || st.hero.comboT > 0)) {
+      ctx.fillStyle = '#ffe066';
+      ctx.font = "bold 14px 'Nunito', sans-serif";
+      ctx.fillText(`Комбо x${st.hero.comboIdx + 1}`, 170, 46);
+    }
     if (st.hero.weapon) {
       ctx.fillStyle = 'rgba(15,12,35,0.75)';
       rr(ctx, 10, 42, 150, 22, 10);
@@ -1003,7 +999,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
 
   function pressButton(id) {
     if (id === 'dash') tryDash();
-    else tryAttack(id);
+    else tryAttack();
   }
 
   function onPointerDown(e) {
@@ -1035,7 +1031,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     if (joy && e.pointerId === joy.id) joy = null;
   }
 
-  const KEYMAP = { j: 'jab', k: 'kick', l: 'heavy', ' ': 'dash', shift: 'dash' };
+  const KEYMAP = { j: 'attack', ' ': 'dash', shift: 'dash' };
   function onKeyDown(e) {
     const k = e.key.toLowerCase();
     if (st && st.cut) {
@@ -1146,8 +1142,9 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       skipCut: () => {
         if (st && st.cut) cutFinish();
       },
-      attack: (k) => tryAttack(k),
+      attack: () => tryAttack(),
       state: () => (st ? st.hero.state : null),
+      combo: () => (st ? st.hero.comboIdx + 1 : 0),
       weapon: () => (st && st.hero.weapon ? st.hero.weapon.id : null),
       giveWeapon: (id) => {
         if (st) st.hero.weapon = { ...WEAPONS.find((w) => w.id === id) };

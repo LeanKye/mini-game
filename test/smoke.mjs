@@ -358,10 +358,12 @@ async function main() {
     await page.evaluate(() => window.__secureOsTest.brawl().skipCut());
     const stage6 = await page.evaluate(() => window.__secureOsTest.brawl().stage());
     if (stage6 !== 1) throw new Error('Уровень 6: старт должен быть на первом этапе');
-    await page.evaluate(() => window.__secureOsTest.brawl().attack('jab'));
+    await page.evaluate(() => window.__secureOsTest.brawl().attack());
+    await page.evaluate(() => window.__secureOsTest.brawl().attack());
+    await page.waitForFunction(() => window.__secureOsTest.brawl().combo() >= 2, null, { timeout: 2000 });
     await page.waitForFunction(() => window.__secureOsTest.brawl().state() === 'attack', null, { timeout: 2000 });
     await page.waitForFunction(() => window.__secureOsTest.brawl().state() === 'idle', null, { timeout: 3000 });
-    results.push('✓ Уровень 6 (бит-эм-ап): удар запускается и возвращает героиню в стойку');
+    results.push('✓ Уровень 6 (бит-эм-ап): одна кнопка запускает цепочку ударов и возвращает героиню в стойку');
     for (const want of [2, 3, 4]) {
       await page.evaluate(() => window.__secureOsTest.brawl().skipCut());
       await page.evaluate(() => window.__secureOsTest.brawl().killAll());
