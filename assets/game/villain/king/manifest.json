@@ -1,0 +1,373 @@
+{
+ "idle": {
+  "action": 0,
+  "frames": [
+   {
+    "file": "idle_00.png",
+    "ticks": 5,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_01.png",
+    "ticks": 5,
+    "w": 27,
+    "h": 52
+   },
+   {
+    "file": "idle_02.png",
+    "ticks": 5,
+    "w": 28,
+    "h": 51
+   },
+   {
+    "file": "idle_03.png",
+    "ticks": 4,
+    "w": 28,
+    "h": 50
+   },
+   {
+    "file": "idle_04.png",
+    "ticks": 5,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_05.png",
+    "ticks": 5,
+    "w": 27,
+    "h": 52
+   },
+   {
+    "file": "idle_06.png",
+    "ticks": 5,
+    "w": 28,
+    "h": 51
+   },
+   {
+    "file": "idle_07.png",
+    "ticks": 5,
+    "w": 28,
+    "h": 50
+   },
+   {
+    "file": "idle_08.png",
+    "ticks": 6,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_09.png",
+    "ticks": 6,
+    "w": 27,
+    "h": 52
+   },
+   {
+    "file": "idle_10.png",
+    "ticks": 6,
+    "w": 28,
+    "h": 51
+   },
+   {
+    "file": "idle_11.png",
+    "ticks": 6,
+    "w": 28,
+    "h": 50
+   },
+   {
+    "file": "idle_12.png",
+    "ticks": 5,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_13.png",
+    "ticks": 7,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_14.png",
+    "ticks": 77,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_15.png",
+    "ticks": 4,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_16.png",
+    "ticks": 4,
+    "w": 25,
+    "h": 52
+   },
+   {
+    "file": "idle_17.png",
+    "ticks": 6,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_18.png",
+    "ticks": 6,
+    "w": 27,
+    "h": 52
+   },
+   {
+    "file": "idle_19.png",
+    "ticks": 5,
+    "w": 28,
+    "h": 51
+   },
+   {
+    "file": "idle_20.png",
+    "ticks": 5,
+    "w": 28,
+    "h": 50
+   },
+   {
+    "file": "idle_21.png",
+    "ticks": 5,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_22.png",
+    "ticks": 5,
+    "w": 27,
+    "h": 52
+   },
+   {
+    "file": "idle_23.png",
+    "ticks": 5,
+    "w": 28,
+    "h": 51
+   },
+   {
+    "file": "idle_24.png",
+    "ticks": 5,
+    "w": 28,
+    "h": 50
+   },
+   {
+    "file": "idle_25.png",
+    "ticks": 6,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_26.png",
+    "ticks": 6,
+    "w": 27,
+    "h": 52
+   },
+   {
+    "file": "idle_27.png",
+    "ticks": 6,
+    "w": 28,
+    "h": 51
+   },
+   {
+    "file": "idle_28.png",
+    "ticks": 6,
+    "w": 28,
+    "h": 50
+   },
+   {
+    "file": "idle_29.png",
+    "ticks": 4,
+    "w": 26,
+    "h": 52
+   },
+   {
+    "file": "idle_30.png",
+    "ticks": 7,
+    "w": 24,
+    "h": 52
+   },
+   {
+    "file": "idle_31.png",
+    "ticks": 8,
+    "w": 22,
+    "h": 54
+   },
+   {
+    "file": "idle_32.png",
+    "ticks": 8,
+    "w": 22,
+    "h": 53
+   },
+   {
+    "file": "idle_33.png",
+    "ticks": 10,
+    "w": 23,
+    "h": 53
+   },
+   {
+    "file": "idle_34.png",
+    "ticks": 7,
+    "w": 23,
+    "h": 53
+   },
+   {
+    "file": "idle_35.png",
+    "ticks": 9,
+    "w": 22,
+    "h": 53
+   }
+  ]
+ },
+ "walk": {
+  "action": 20,
+  "frames": [
+   {
+    "file": "walk_00.png",
+    "ticks": 6,
+    "w": 26,
+    "h": 50
+   },
+   {
+    "file": "walk_01.png",
+    "ticks": 6,
+    "w": 26,
+    "h": 49
+   },
+   {
+    "file": "walk_02.png",
+    "ticks": 6,
+    "w": 24,
+    "h": 50
+   },
+   {
+    "file": "walk_03.png",
+    "ticks": 6,
+    "w": 24,
+    "h": 50
+   },
+   {
+    "file": "walk_04.png",
+    "ticks": 6,
+    "w": 24,
+    "h": 50
+   }
+  ]
+ },
+ "attack": {
+  "action": 200,
+  "frames": [
+   {
+    "file": "attack_00.png",
+    "ticks": 2,
+    "w": 32,
+    "h": 52
+   },
+   {
+    "file": "attack_01.png",
+    "ticks": 2,
+    "w": 26,
+    "h": 48
+   },
+   {
+    "file": "attack_02.png",
+    "ticks": 2,
+    "w": 36,
+    "h": 49
+   },
+   {
+    "file": "attack_03.png",
+    "ticks": 3,
+    "w": 36,
+    "h": 49
+   }
+  ]
+ },
+ "attack2": {
+  "action": 205,
+  "frames": [
+   {
+    "file": "attack2_00.png",
+    "ticks": 3,
+    "w": 28,
+    "h": 51
+   },
+   {
+    "file": "attack2_01.png",
+    "ticks": 3,
+    "w": 25,
+    "h": 52
+   },
+   {
+    "file": "attack2_02.png",
+    "ticks": 2,
+    "w": 44,
+    "h": 51
+   },
+   {
+    "file": "attack2_03.png",
+    "ticks": 4,
+    "w": 44,
+    "h": 51
+   }
+  ]
+ },
+ "kick": {
+  "action": 210,
+  "frames": [
+   {
+    "file": "kick_00.png",
+    "ticks": 2,
+    "w": 28,
+    "h": 49
+   },
+   {
+    "file": "kick_01.png",
+    "ticks": 2,
+    "w": 18,
+    "h": 51
+   },
+   {
+    "file": "kick_02.png",
+    "ticks": 2,
+    "w": 48,
+    "h": 54
+   },
+   {
+    "file": "kick_03.png",
+    "ticks": 4,
+    "w": 40,
+    "h": 52
+   }
+  ]
+ },
+ "hurt": {
+  "action": 5000,
+  "frames": [
+   {
+    "file": "hurt_00.png",
+    "ticks": 5,
+    "w": 30,
+    "h": 50
+   },
+   {
+    "file": "hurt_01.png",
+    "ticks": 2,
+    "w": 33,
+    "h": 50
+   }
+  ]
+ },
+ "knock": {
+  "action": 5030,
+  "frames": [
+   {
+    "file": "knock_00.png",
+    "ticks": 3,
+    "w": 30,
+    "h": 37
+   }
+  ]
+ }
+}

@@ -41,22 +41,28 @@ SCALE = 0.5
 COLORS = 32
 
 
-def read_sff(path):
+def read_sff(path, act_pal=None):
     # записи с флагом same_pal используют палитру последней записи с собственной палитрой
     d = open(path, 'rb').read()
     sprites = {}
     off = 512
     seen = 0
-    last_pal = None
+    last_pal = act_pal
     while off and off + 32 < len(d) and seen < 4000:
         seen += 1
         nxt, ln, x, y, g, n, _l, same = struct.unpack('<IIhhHHHB', d[off:off + 19])
         if ln:
             body = d[off + 32:off + 32 + ln]
-            if same and last_pal is not None:
-                body = body + last_pal
-            else:
+            has_pal = len(body) >= 769 and body[-769] == 12
+            if act_pal is not None:
+                # внешняя палитра .act имеет приоритет над встроенной
+                body = (body[:-769] if has_pal else body) + b"\x0c" + act_pal
+            elif has_pal:
                 last_pal = body[-768:]
+            else:
+                pal = last_pal if last_pal is not None else act_pal
+                if pal is not None:
+                    body = body + b"\x0c" + pal
             sprites[(g, n)] = (x, y, body)
         off = nxt
     return sprites

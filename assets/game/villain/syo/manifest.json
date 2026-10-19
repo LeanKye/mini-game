@@ -1,0 +1,235 @@
+{
+ "idle": {
+  "action": 0,
+  "frames": [
+   {
+    "file": "idle_00.png",
+    "ticks": 6,
+    "w": 30,
+    "h": 54
+   },
+   {
+    "file": "idle_01.png",
+    "ticks": 6,
+    "w": 30,
+    "h": 54
+   },
+   {
+    "file": "idle_02.png",
+    "ticks": 6,
+    "w": 30,
+    "h": 52
+   },
+   {
+    "file": "idle_03.png",
+    "ticks": 8,
+    "w": 30,
+    "h": 52
+   },
+   {
+    "file": "idle_04.png",
+    "ticks": 7,
+    "w": 30,
+    "h": 52
+   },
+   {
+    "file": "idle_05.png",
+    "ticks": 6,
+    "w": 30,
+    "h": 54
+   },
+   {
+    "file": "idle_06.png",
+    "ticks": 6,
+    "w": 30,
+    "h": 54
+   },
+   {
+    "file": "idle_07.png",
+    "ticks": 6,
+    "w": 32,
+    "h": 53
+   },
+   {
+    "file": "idle_08.png",
+    "ticks": 8,
+    "w": 32,
+    "h": 52
+   },
+   {
+    "file": "idle_09.png",
+    "ticks": 7,
+    "w": 32,
+    "h": 53
+   }
+  ]
+ },
+ "walk": {
+  "action": 20,
+  "frames": [
+   {
+    "file": "walk_00.png",
+    "ticks": 6,
+    "w": 23,
+    "h": 54
+   },
+   {
+    "file": "walk_01.png",
+    "ticks": 6,
+    "w": 23,
+    "h": 56
+   },
+   {
+    "file": "walk_02.png",
+    "ticks": 6,
+    "w": 24,
+    "h": 58
+   },
+   {
+    "file": "walk_03.png",
+    "ticks": 6,
+    "w": 26,
+    "h": 56
+   },
+   {
+    "file": "walk_04.png",
+    "ticks": 6,
+    "w": 28,
+    "h": 56
+   }
+  ]
+ },
+ "attack": {
+  "action": 200,
+  "frames": [
+   {
+    "file": "attack_00.png",
+    "ticks": 4,
+    "w": 32,
+    "h": 52
+   },
+   {
+    "file": "attack_01.png",
+    "ticks": 4,
+    "w": 46,
+    "h": 51
+   },
+   {
+    "file": "attack_02.png",
+    "ticks": 5,
+    "w": 32,
+    "h": 52
+   }
+  ]
+ },
+ "attack2": {
+  "action": 205,
+  "frames": [
+   {
+    "file": "attack2_00.png",
+    "ticks": 4,
+    "w": 30,
+    "h": 52
+   },
+   {
+    "file": "attack2_01.png",
+    "ticks": 4,
+    "w": 34,
+    "h": 52
+   },
+   {
+    "file": "attack2_02.png",
+    "ticks": 5,
+    "w": 30,
+    "h": 52
+   }
+  ]
+ },
+ "kick": {
+  "action": 210,
+  "frames": [
+   {
+    "file": "kick_00.png",
+    "ticks": 2,
+    "w": 32,
+    "h": 52
+   },
+   {
+    "file": "kick_01.png",
+    "ticks": 2,
+    "w": 40,
+    "h": 55
+   },
+   {
+    "file": "kick_02.png",
+    "ticks": 5,
+    "w": 40,
+    "h": 58
+   },
+   {
+    "file": "kick_03.png",
+    "ticks": 3,
+    "w": 40,
+    "h": 52
+   },
+   {
+    "file": "kick_04.png",
+    "ticks": 2,
+    "w": 62,
+    "h": 40
+   },
+   {
+    "file": "kick_05.png",
+    "ticks": 4,
+    "w": 60,
+    "h": 41
+   },
+   {
+    "file": "kick_06.png",
+    "ticks": 3,
+    "w": 60,
+    "h": 41
+   },
+   {
+    "file": "kick_07.png",
+    "ticks": 5,
+    "w": 46,
+    "h": 44
+   },
+   {
+    "file": "kick_08.png",
+    "ticks": 5,
+    "w": 32,
+    "h": 52
+   }
+  ]
+ },
+ "hurt": {
+  "action": 5000,
+  "frames": [
+   {
+    "file": "hurt_00.png",
+    "ticks": 2,
+    "w": 33,
+    "h": 52
+   },
+   {
+    "file": "hurt_01.png",
+    "ticks": 5,
+    "w": 34,
+    "h": 54
+   }
+  ]
+ },
+ "knock": {
+  "action": 5030,
+  "frames": [
+   {
+    "file": "knock_00.png",
+    "ticks": 5,
+    "w": 34,
+    "h": 47
+   }
+  ]
+ }
+}

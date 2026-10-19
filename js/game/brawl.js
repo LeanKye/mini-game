@@ -37,11 +37,10 @@ const WEAPONS = [
 ];
 
 const ENEMY_DEF = {
-  slime: { hp: 22, speed: 58, dmg: 8, reach: 38, windup: 0.5, cool: 1.1, scale: 3.4, sprite: 'blob', drop: 0.3 },
-  bat: { hp: 14, speed: 100, dmg: 6, reach: 34, windup: 0.35, cool: 0.9, scale: 3.6, sprite: 'bat', drop: 0.2, fly: 46 },
-  mushroom: { hp: 60, speed: 36, dmg: 14, reach: 46, windup: 0.8, cool: 1.7, scale: 4, sprite: 'spitter', drop: 0.6 },
-  thug: { hp: 36, speed: 70, dmg: 11, reach: 44, windup: 0.6, cool: 1.0, scale: 1, sprite: null, frames: 'joe', drop: 0.35 },
-  boss: { hp: 280, speed: 44, dmg: 16, reach: 64, windup: 0.8, cool: 1.4, scale: 5.4, sprite: 'golem', drop: 0 },
+  thug: { hp: 36, speed: 70, dmg: 11, reach: 44, windup: 0.6, cool: 1.0, frames: 'joe', drop: 0.35 },
+  brawler: { hp: 48, speed: 50, dmg: 13, reach: 46, windup: 0.7, cool: 1.3, frames: 'king', drop: 0.45 },
+  agile: { hp: 30, speed: 92, dmg: 9, reach: 44, windup: 0.4, cool: 0.9, frames: 'eiji', drop: 0.3 },
+  boss: { hp: 280, speed: 44, dmg: 16, reach: 60, windup: 0.8, cool: 1.4, frames: 'iori', scaleMul: 1.35, drop: 0 },
 };
 
 // История: Рин, искательница приключений, спускается в подземелье за древним свитком.
@@ -53,7 +52,7 @@ const STAGES = [
       'Меня зовут Рин. Я искательница приключений, и если в подземелье есть опасность, значит, там точно есть что-то стоящее.',
       'Вход спрятан за плющом. Изнутри тянет холодом, а на стенах светится мох. Первые слизни уже ползут навстречу, будто давно ждали гостей.',
     ],
-    waves: [['slime', 'slime', 'slime'], ['slime', 'bat', 'slime'], ['slime', 'slime', 'thug', 'bat']],
+    waves: [['agile', 'agile', 'agile'], ['agile', 'agile', 'agile'], ['agile', 'agile', 'thug', 'agile']],
   },
   {
     id: 'river', title: 'Подземная река', sub: 'Шум воды и эхо', sky: ['#0b1c33', '#1f4e6e'],
@@ -61,7 +60,7 @@ const STAGES = [
       'Подземная река шумит так, будто говорит. Летучие мыши срываются с потолка, и эхо разносит их писк по всем залам.',
       'Чем глубже, тем чаще на стенах руны. Кто-то очень старался, чтобы сюда никто не добрался. Значит, я на верном пути.',
     ],
-    waves: [['bat', 'bat', 'slime'], ['bat', 'thug', 'slime', 'slime'], ['bat', 'bat', 'bat', 'thug']],
+    waves: [['agile', 'agile', 'agile'], ['agile', 'thug', 'agile', 'agile'], ['agile', 'agile', 'agile', 'thug']],
   },
   {
     id: 'pillars', title: 'Залы колонн', sub: 'Камень шевелится', sky: ['#241a2e', '#4a3150'],
@@ -69,7 +68,7 @@ const STAGES = [
       'Колонны стоят ровными рядами, но карта перестала совпадать с залами. Камни сдвигаются, будто подземелье проверяет меня.',
       'Гриб-страж у выхода оказался живым. Он щёлкнул зубами и больше не выглядит дружелюбным.',
     ],
-    waves: [['thug', 'slime', 'slime', 'bat'], ['thug', 'thug', 'bat', 'slime'], ['thug', 'bat', 'thug', 'slime', 'slime']],
+    waves: [['thug', 'agile', 'agile', 'agile'], ['thug', 'thug', 'agile', 'agile'], ['thug', 'agile', 'thug', 'agile', 'agile']],
   },
   {
     id: 'temple', title: 'Храм в глубине', sub: 'Голем у свитка', sky: ['#14101f', '#2e2244'], boss: true,
@@ -77,7 +76,7 @@ const STAGES = [
       'Круглый зал, а в центре постамент. На нём свиток, и от него по стенам бегут тёплые строки.',
       'Камень зашевелился. Между мной и свитком встаёт древний голем. Кажется, он охраняет не сокровище, а то, что написано внутри.',
     ],
-    waves: [['slime', 'slime', 'bat'], ['boss']],
+    waves: [['agile', 'agile', 'agile'], ['boss']],
   },
 ];
 
@@ -797,7 +796,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     const list = set[anim] || set.idle || set.walk;
     if (!list || !list.length) return false;
     const f = frameAt(list, e.animT, loop);
-    const k = villainScale(set);
+    const k = villainScale(set) * (def.scaleMul || 1);
     const w = f.img.width * k;
     const h = f.img.height * k;
     ctx.save();
@@ -1144,11 +1143,13 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
 
   setScale();
   newStage(0);
-  loadHeroFrames('assets/game/villain/joe/')
-    .then((f) => {
-      villainFrames.joe = f;
-    })
-    .catch(() => {});
+  for (const key of ['joe', 'king', 'eiji', 'iori']) {
+    loadHeroFrames(`assets/game/villain/${key}/`)
+      .then((f) => {
+        villainFrames[key] = f;
+      })
+      .catch(() => {});
+  }
   loadHeroFrames()
     .then((f) => {
       frames = f;
