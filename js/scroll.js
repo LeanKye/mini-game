@@ -35,7 +35,7 @@ export function createScroll(container, text, onDone) {
   canvas.className = 'scroll__canvas';
   const hint = document.createElement('p');
   hint.className = 'scroll__hint';
-  hint.textContent = 'Проведи пальцем по свитку, чтобы проявились символы';
+  hint.textContent = 'Тяни пальцем влево-вправо, чтобы проявились символы. Листай страницу вверх-вниз обычно';
   wrap.append(canvas, hint);
   container.appendChild(wrap);
 

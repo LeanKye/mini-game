@@ -106,6 +106,7 @@ export const CONFIG = {
       gameId: 'game6',
       kind: 'brawl',
       icon: '✹',
+      skippable: true,
       scroll: true,
       intro:
         'Рин спускается в подземелье за древним свитком. Четыре этапа: пещера, подземная река, залы колонн и храм с големом. ' +
