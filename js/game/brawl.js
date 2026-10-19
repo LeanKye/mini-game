@@ -40,6 +40,7 @@ const ENEMY_DEF = {
   slime: { hp: 22, speed: 58, dmg: 8, reach: 38, windup: 0.5, cool: 1.1, scale: 3.4, sprite: 'blob', drop: 0.3 },
   bat: { hp: 14, speed: 100, dmg: 6, reach: 34, windup: 0.35, cool: 0.9, scale: 3.6, sprite: 'bat', drop: 0.2, fly: 46 },
   mushroom: { hp: 60, speed: 36, dmg: 14, reach: 46, windup: 0.8, cool: 1.7, scale: 4, sprite: 'spitter', drop: 0.6 },
+  thug: { hp: 36, speed: 70, dmg: 11, reach: 44, windup: 0.6, cool: 1.0, scale: 1, sprite: null, frames: 'joe', drop: 0.35 },
   boss: { hp: 280, speed: 44, dmg: 16, reach: 64, windup: 0.8, cool: 1.4, scale: 5.4, sprite: 'golem', drop: 0 },
 };
 
@@ -52,7 +53,7 @@ const STAGES = [
       'Меня зовут Рин. Я искательница приключений, и если в подземелье есть опасность, значит, там точно есть что-то стоящее.',
       'Вход спрятан за плющом. Изнутри тянет холодом, а на стенах светится мох. Первые слизни уже ползут навстречу, будто давно ждали гостей.',
     ],
-    waves: [['slime', 'slime', 'slime'], ['slime', 'bat', 'slime'], ['slime', 'slime', 'mushroom', 'bat']],
+    waves: [['slime', 'slime', 'slime'], ['slime', 'bat', 'slime'], ['slime', 'slime', 'thug', 'bat']],
   },
   {
     id: 'river', title: 'Подземная река', sub: 'Шум воды и эхо', sky: ['#0b1c33', '#1f4e6e'],
@@ -60,7 +61,7 @@ const STAGES = [
       'Подземная река шумит так, будто говорит. Летучие мыши срываются с потолка, и эхо разносит их писк по всем залам.',
       'Чем глубже, тем чаще на стенах руны. Кто-то очень старался, чтобы сюда никто не добрался. Значит, я на верном пути.',
     ],
-    waves: [['bat', 'bat', 'slime'], ['bat', 'mushroom', 'slime', 'slime'], ['bat', 'bat', 'bat', 'mushroom']],
+    waves: [['bat', 'bat', 'slime'], ['bat', 'thug', 'slime', 'slime'], ['bat', 'bat', 'bat', 'thug']],
   },
   {
     id: 'pillars', title: 'Залы колонн', sub: 'Камень шевелится', sky: ['#241a2e', '#4a3150'],
@@ -68,7 +69,7 @@ const STAGES = [
       'Колонны стоят ровными рядами, но карта перестала совпадать с залами. Камни сдвигаются, будто подземелье проверяет меня.',
       'Гриб-страж у выхода оказался живым. Он щёлкнул зубами и больше не выглядит дружелюбным.',
     ],
-    waves: [['mushroom', 'slime', 'slime', 'bat'], ['mushroom', 'mushroom', 'bat', 'slime'], ['mushroom', 'bat', 'mushroom', 'slime', 'slime']],
+    waves: [['thug', 'slime', 'slime', 'bat'], ['thug', 'thug', 'bat', 'slime'], ['thug', 'bat', 'thug', 'slime', 'slime']],
   },
   {
     id: 'temple', title: 'Храм в глубине', sub: 'Голем у свитка', sky: ['#14101f', '#2e2244'], boss: true,
@@ -229,6 +230,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
   let last = 0;
   let acc = 0;
   let frames = null;
+  const villainFrames = {};
   let stageIdx = 0;
   let bg = null;
   let st = null;
@@ -529,6 +531,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       hurt: 0,
       flash: 0,
       cd: Math.random() * 0.6,
+      animT: 0,
       chargeCd: 2.5,
       deadT: 0,
       face: -1,
@@ -540,6 +543,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     for (const e of st.enemies) {
       const def = ENEMY_DEF[e.type];
       e.flash = Math.max(0, e.flash - dt);
+      e.animT += dt;
       if (e.state === 'dead') {
         e.deadT -= dt;
         continue;
@@ -761,8 +765,71 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     ctx.restore();
   }
 
+  // Проигрывание списка кадров по времени: loop - зацикливать, иначе держать последний кадр
+  function frameAt(list, time, loop) {
+    const total = list.reduce((sum, f) => sum + f.dur, 0);
+    let tt = loop ? time % total : Math.min(time, total - 0.001);
+    for (const f of list) {
+      if (tt < f.dur) return f;
+      tt -= f.dur;
+    }
+    return list[list.length - 1];
+  }
+
+  // масштаб злодея: рост такой же, как у героини на экране
+  function villainScale(set) {
+    const hero = frames && frames.idle && frames.idle[0];
+    const ref = set.idle && set.idle[0];
+    if (!hero || !ref) return 1.2;
+    return (hero.img.height * HERO_SCALE) / ref.img.height;
+  }
+
+  function drawVillain(e, def, t) {
+    const set = villainFrames[def.frames];
+    if (!set) return false;
+    let anim = 'walk';
+    let loop = true;
+    if (e.state === 'dead') { anim = 'knock'; loop = false; }
+    else if (e.hurt > 0) { anim = 'hurt'; loop = false; }
+    else if (e.state === 'windup' || e.state === 'charge_windup') { anim = 'attack'; loop = false; }
+    else if (e.state === 'charge') { anim = 'kick'; loop = true; }
+    else if (e.state === 'approach' && Math.abs(st.hero.x - e.x) < 4) anim = 'idle';
+    const list = set[anim] || set.idle || set.walk;
+    if (!list || !list.length) return false;
+    const f = frameAt(list, e.animT, loop);
+    const k = villainScale(set);
+    const w = f.img.width * k;
+    const h = f.img.height * k;
+    ctx.save();
+    ctx.translate(e.x - st.camX, e.y + Math.sin(t * 6 + e.x) * 0.6);
+    if (e.face > 0) ctx.scale(-1, 1);
+    ctx.globalAlpha = e.state === 'dead' ? Math.max(0, e.deadT / 0.6) : 1;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(f.img, -w / 2, -h, w, h);
+    if (e.flash > 0) {
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(-w / 2, -h, w, h);
+    }
+    ctx.restore();
+    return true;
+  }
+
   function drawEnemy(e, t) {
     const def = ENEMY_DEF[e.type];
+    if (def.frames && drawVillain(e, def, t)) {
+      if (e.hp < e.maxHp && e.state !== 'dead') {
+        const bw = 34;
+        const hh = 110;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        rr(ctx, e.x - st.camX - bw / 2, e.y - hh, bw, 5, 2);
+        ctx.fill();
+        ctx.fillStyle = '#7bd88f';
+        rr(ctx, e.x - st.camX - bw / 2, e.y - hh, bw * Math.max(0, e.hp / e.maxHp), 5, 2);
+        ctx.fill();
+      }
+      return;
+    }
     const img = spriteCanvas(def.sprite, e.flash > 0);
     const w = img.width * def.scale;
     const h = img.height * def.scale;
@@ -843,7 +910,9 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
     ctx.beginPath();
     ctx.ellipse(x, h.y, 16, 5, 0, 0, Math.PI * 2);
     ctx.fill();
-    drawFrame(h.anim, x, h.y, h.face < 0, HERO_SCALE, flash ? 'rgba(255,60,80,0.6)' : null);
+    ctx.globalAlpha = flash ? 0.45 : 1;
+    drawFrame(h.anim, x, h.y, h.face < 0, HERO_SCALE, null);
+    ctx.globalAlpha = 1;
     if (h.weapon) {
       ctx.fillStyle = h.weapon.col;
       ctx.font = "bold 16px 'Nunito', sans-serif";
@@ -1075,6 +1144,11 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
 
   setScale();
   newStage(0);
+  loadHeroFrames('assets/game/villain/joe/')
+    .then((f) => {
+      villainFrames.joe = f;
+    })
+    .catch(() => {});
   loadHeroFrames()
     .then((f) => {
       frames = f;
