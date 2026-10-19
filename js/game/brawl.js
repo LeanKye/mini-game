@@ -467,6 +467,7 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       hurt: 0,
       flash: 0,
       cd: Math.random() * 0.6,
+      chargeCd: 2.5,
       deadT: 0,
       face: -1,
     };
@@ -490,7 +491,35 @@ export function createBrawl(canvas, { onHint, onWin } = {}) {
       const dy = h.y - e.y;
       const dist = Math.hypot(dx, dy);
       e.cd -= dt;
-      if (e.state === 'approach') {
+      // босс: замах и рывок на героиню, рывок можно увернуть
+      if (e.type === 'boss' && e.state === 'approach') {
+        e.chargeCd -= dt;
+        if (e.chargeCd <= 0 && Math.abs(dx) < 260) {
+          e.state = 'charge_windup';
+          e.t = 0.7;
+        }
+      }
+      if (e.state === 'charge_windup') {
+        e.t -= dt;
+        if (e.t <= 0) {
+          e.state = 'charge';
+          e.t = 0.55;
+          e.dirX = Math.sign(dx) || 1;
+          e.hitDone = false;
+        }
+      } else if (e.state === 'charge') {
+        e.t -= dt;
+        e.x += e.dirX * 210 * dt;
+        if (!e.hitDone && Math.abs(h.x - e.x) < 36 && Math.abs(dy) < 16 && h.invuln <= 0) {
+          e.hitDone = true;
+          hurtHero(def.dmg * st.difficulty * 1.3, e.x);
+        }
+        if (e.t <= 0) {
+          e.state = 'approach';
+          e.cd = def.cool;
+          e.chargeCd = 4;
+        }
+      } else if (e.state === 'approach') {
         if (Math.abs(dx) > def.reach || Math.abs(dy) > 14) {
           const sp = def.speed * dt;
           e.x += Math.sign(dx) * Math.min(sp, Math.abs(dx));

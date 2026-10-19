@@ -369,6 +369,20 @@ async function main() {
     results.push('✓ Уровень 6: три перехода (улица - крыши - святилище - храм) работают');
     await page.evaluate(() => window.__secureOsTest.brawl().nextStage());
     results.push('✓ Уровень 6: финальный этап в храме');
+    await page.evaluate(() => window.__secureOsTest.forceWin());
+    await page.waitForSelector('.scroll__canvas', { timeout: 8000 });
+    const box = await page.locator('.scroll__canvas').boundingBox();
+    await page.mouse.move(box.x + 8, box.y + 8);
+    await page.mouse.down();
+    for (let y = box.y + 8; y < box.y + box.height - 8; y += 16) {
+      await page.mouse.move(box.x + box.width - 8, y, { steps: 6 });
+      await page.mouse.move(box.x + 8, y + 8, { steps: 6 });
+    }
+    await page.mouse.up();
+    await page.waitForSelector('.scroll--done', { timeout: 8000 });
+    await page.waitForSelector('#puzzle-board', { state: 'attached', timeout: 8000 });
+    results.push('✓ Уровень 6: свиток проявляется пальцем, после раскрытия открывается замок с кодом');
+
 
 
   } catch (err) {

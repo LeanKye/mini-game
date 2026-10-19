@@ -105,6 +105,9 @@ export const CONFIG = {
       unlocked: true,
       gameId: 'game6',
       kind: 'brawl',
+      scroll: true,
+      puzzle: true,
+      puzzleType: 'lock',
       icon: '✹',
       intro:
         'Три улицы и финальный бой в храме. Бей A (удары по цепочке), B (ногой), C (мощный удар), РЫВОК - уворот. ' +

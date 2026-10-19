@@ -5,6 +5,7 @@ import { createRhythm } from './game/rhythm.js';
 import { createRogue } from './game/rogue.js';
 import { createStealth } from './game/stealth.js';
 import { createBrawl } from './game/brawl.js';
+import { createScroll } from './scroll.js';
 import { getReward } from './rewards.js';
 
 const screens = {
@@ -507,17 +508,25 @@ async function revealReward(opts = {}) {
     }
 
     el.rewardTitle.textContent = reward.title || CONFIG.winTitle;
-    typeStory(el.rewardStory, reward.story || []);
-
-    if (reward.code) {
-      if (usePuzzle) showPuzzle(reward.code);
-      else {
-        el.code.dataset.code = reward.code;
-        el.code.textContent = reward.code;
-        el.codeBlock.classList.remove('hidden');
+    const finish = () => {
+      if (reward.code) {
+        if (usePuzzle) showPuzzle(reward.code);
+        else {
+          el.code.dataset.code = reward.code;
+          el.code.textContent = reward.code;
+          el.codeBlock.classList.remove('hidden');
+        }
       }
+      el.bonus.textContent = reward.bonus || CONFIG.bonusFallback;
+    };
+    if (level && level.scroll) {
+      // история проявляется на свитке, код и замок - после того, как свиток раскрыт
+      el.rewardStory.innerHTML = '';
+      createScroll(el.rewardStory, (reward.story || []).join('\n'), finish);
+    } else {
+      typeStory(el.rewardStory, reward.story || []);
+      finish();
     }
-    el.bonus.textContent = reward.bonus || CONFIG.bonusFallback;
   } catch (err) {
     el.rewardStory.innerHTML = '';
     const p = document.createElement('p');
