@@ -24,7 +24,7 @@ const ATTACKS = {
   punch2: { anim: 'punch2', dmg: 7, reach: 50, hitAt: 0.06, hitDur: 0.14, stun: 0.2, kb: 30 },
   punch3: { anim: 'punch3', dmg: 11, reach: 56, hitAt: 0.2, hitDur: 0.16, stun: 0.32, kb: 90 },
   kick: { anim: 'kick', dmg: 9, reach: 60, hitAt: 0.12, hitDur: 0.16, stun: 0.3, kb: 70 },
-  heavy: { anim: 'heavy', dmg: 18, reach: 72, hitAt: 0.22, hitDur: 0.22, stun: 0.45, kb: 150 },
+  heavy: { anim: 'uppercut', dmg: 18, reach: 72, hitAt: 0.22, hitDur: 0.22, stun: 0.45, kb: 150 },
 };
 const COMBO_NEXT = { jab: 'punch2', punch2: 'punch3' };
 

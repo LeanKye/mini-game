@@ -75,448 +75,761 @@
    }
   ]
  },
- "jab": {
+ "dash": {
+  "action": 100,
+  "frames": [
+   {
+    "file": "dash_00.png",
+    "ticks": 3,
+    "w": 76,
+    "h": 97
+   },
+   {
+    "file": "dash_01.png",
+    "ticks": 7,
+    "w": 70,
+    "h": 91
+   },
+   {
+    "file": "dash_02.png",
+    "ticks": 5,
+    "w": 70,
+    "h": 94
+   },
+   {
+    "file": "dash_03.png",
+    "ticks": 5,
+    "w": 80,
+    "h": 89
+   },
+   {
+    "file": "dash_04.png",
+    "ticks": 7,
+    "w": 68,
+    "h": 91
+   },
+   {
+    "file": "dash_05.png",
+    "ticks": 5,
+    "w": 70,
+    "h": 94
+   },
+   {
+    "file": "dash_06.png",
+    "ticks": 5,
+    "w": 80,
+    "h": 89
+   }
+  ]
+ },
+ "jump": {
   "action": 40,
   "frames": [
    {
-    "file": "jab_00.png",
+    "file": "jump_00.png",
     "ticks": 1,
     "w": 64,
     "h": 90
    },
    {
-    "file": "jab_01.png",
+    "file": "jump_01.png",
     "ticks": 1,
     "w": 73,
     "h": 70
    },
    {
-    "file": "jab_02.png",
+    "file": "jump_02.png",
     "ticks": 1,
     "w": 51,
     "h": 74
    }
   ]
  },
- "punch2": {
-  "action": 41,
+ "block": {
+  "action": 120,
   "frames": [
    {
-    "file": "punch2_00.png",
-    "ticks": 6,
-    "w": 50,
-    "h": 100
-   },
-   {
-    "file": "punch2_01.png",
-    "ticks": 4,
-    "w": 37,
-    "h": 100
-   }
-  ]
- },
- "punch3": {
-  "action": 42,
-  "frames": [
-   {
-    "file": "punch3_00.png",
-    "ticks": 6,
-    "w": 58,
-    "h": 97
-   },
-   {
-    "file": "punch3_01.png",
-    "ticks": 5,
-    "w": 87,
-    "h": 95
-   },
-   {
-    "file": "punch3_02.png",
-    "ticks": 5,
-    "w": 82,
-    "h": 96
-   },
-   {
-    "file": "punch3_03.png",
-    "ticks": 6,
-    "w": 87,
-    "h": 95
-   },
-   {
-    "file": "punch3_04.png",
-    "ticks": 6,
-    "w": 66,
-    "h": 96
-   },
-   {
-    "file": "punch3_05.png",
-    "ticks": 10,
-    "w": 66,
-    "h": 96
-   }
-  ]
- },
- "kick": {
-  "action": 44,
-  "frames": [
-   {
-    "file": "kick_00.png",
-    "ticks": 6,
-    "w": 68,
-    "h": 104
-   },
-   {
-    "file": "kick_01.png",
-    "ticks": 4,
-    "w": 92,
-    "h": 114
-   },
-   {
-    "file": "kick_02.png",
-    "ticks": 3,
-    "w": 79,
-    "h": 116
-   }
-  ]
- },
- "heavy": {
-  "action": 47,
-  "frames": [
-   {
-    "file": "heavy_00.png",
-    "ticks": 2,
-    "w": 92,
-    "h": 114
-   },
-   {
-    "file": "heavy_01.png",
-    "ticks": 2,
-    "w": 92,
-    "h": 106
-   },
-   {
-    "file": "heavy_02.png",
-    "ticks": 2,
-    "w": 85,
-    "h": 88
-   },
-   {
-    "file": "heavy_03.png",
-    "ticks": 2,
-    "w": 71,
-    "h": 82
-   },
-   {
-    "file": "heavy_04.png",
+    "file": "block_00.png",
     "ticks": 1,
-    "w": 80,
-    "h": 64
-   },
-   {
-    "file": "heavy_05.png",
-    "ticks": 1,
-    "w": 76,
-    "h": 62
-   },
-   {
-    "file": "heavy_06.png",
-    "ticks": 2,
-    "w": 74,
-    "h": 63
-   },
-   {
-    "file": "heavy_07.png",
-    "ticks": 2,
-    "w": 72,
-    "h": 78
-   },
-   {
-    "file": "heavy_08.png",
-    "ticks": 1,
-    "w": 64,
-    "h": 90
-   },
-   {
-    "file": "heavy_09.png",
-    "ticks": 1,
-    "w": 65,
+    "w": 56,
     "h": 93
    },
    {
-    "file": "heavy_10.png",
+    "file": "block_01.png",
+    "ticks": 2,
+    "w": 56,
+    "h": 93
+   },
+   {
+    "file": "block_02.png",
+    "ticks": 2,
+    "w": 56,
+    "h": 93
+   },
+   {
+    "file": "block_03.png",
+    "ticks": 2,
+    "w": 56,
+    "h": 93
+   },
+   {
+    "file": "block_04.png",
+    "ticks": 2,
+    "w": 56,
+    "h": 93
+   }
+  ]
+ },
+ "jab": {
+  "action": 300,
+  "frames": [
+   {
+    "file": "jab_00.png",
     "ticks": 1,
-    "w": 66,
-    "h": 95
-   }
-  ]
- },
- "air": {
-  "action": 180,
-  "frames": [
-   {
-    "file": "air_00.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
+    "w": 61,
+    "h": 96
    },
    {
-    "file": "air_01.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_02.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_03.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_04.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_05.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_06.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_07.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_08.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_09.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_10.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_11.png",
-    "ticks": 4,
-    "w": 80,
-    "h": 84
-   },
-   {
-    "file": "air_12.png",
-    "ticks": 5,
-    "w": 90,
-    "h": 108
-   },
-   {
-    "file": "air_13.png",
-    "ticks": 5,
-    "w": 99,
-    "h": 108
-   },
-   {
-    "file": "air_14.png",
-    "ticks": 7,
-    "w": 108,
-    "h": 108
-   },
-   {
-    "file": "air_15.png",
-    "ticks": 7,
-    "w": 92,
-    "h": 108
-   }
-  ]
- },
- "hurt": {
-  "action": 5,
-  "frames": [
-   {
-    "file": "hurt_00.png",
-    "ticks": 3,
-    "w": 46,
-    "h": 98
-   },
-   {
-    "file": "hurt_01.png",
-    "ticks": 3,
-    "w": 46,
-    "h": 98
-   }
-  ]
- },
- "knock": {
-  "action": 251,
-  "frames": [
-   {
-    "file": "knock_00.png",
-    "ticks": 60,
-    "w": 113,
-    "h": 22
-   },
-   {
-    "file": "knock_01.png",
-    "ticks": 5,
-    "w": 106,
-    "h": 68
-   },
-   {
-    "file": "knock_02.png",
-    "ticks": 8,
-    "w": 102,
-    "h": 88
-   },
-   {
-    "file": "knock_03.png",
-    "ticks": 20,
-    "w": 118,
-    "h": 76
-   },
-   {
-    "file": "knock_04.png",
-    "ticks": 5,
-    "w": 102,
-    "h": 88
-   },
-   {
-    "file": "knock_05.png",
-    "ticks": 10,
-    "w": 76,
-    "h": 64
-   }
-  ]
- },
- "dash": {
-  "action": 410,
-  "frames": [
-   {
-    "file": "dash_00.png",
-    "ticks": 2,
-    "w": 82,
-    "h": 65
-   },
-   {
-    "file": "dash_01.png",
-    "ticks": 2,
-    "w": 66,
-    "h": 56
-   },
-   {
-    "file": "dash_02.png",
-    "ticks": 2,
-    "w": 68,
-    "h": 49
-   },
-   {
-    "file": "dash_03.png",
-    "ticks": 3,
-    "w": 66,
-    "h": 47
-   },
-   {
-    "file": "dash_04.png",
-    "ticks": 6,
-    "w": 118,
-    "h": 49
-   },
-   {
-    "file": "dash_05.png",
-    "ticks": 4,
-    "w": 114,
-    "h": 50
-   },
-   {
-    "file": "dash_06.png",
-    "ticks": 3,
-    "w": 66,
-    "h": 47
-   },
-   {
-    "file": "dash_07.png",
-    "ticks": 2,
-    "w": 68,
-    "h": 49
-   },
-   {
-    "file": "dash_08.png",
-    "ticks": 2,
-    "w": 66,
-    "h": 56
-   },
-   {
-    "file": "dash_09.png",
-    "ticks": 2,
-    "w": 82,
-    "h": 65
-   }
-  ]
- },
- "special": {
-  "action": 800,
-  "frames": [
-   {
-    "file": "special_00.png",
+    "file": "jab_01.png",
     "ticks": 1,
-    "w": 84,
-    "h": 98
-   },
-   {
-    "file": "special_01.png",
-    "ticks": 3,
-    "w": 86,
-    "h": 95
-   },
-   {
-    "file": "special_02.png",
-    "ticks": 2,
-    "w": 80,
-    "h": 95
-   },
-   {
-    "file": "special_03.png",
-    "ticks": 18,
-    "w": 98,
+    "w": 62,
     "h": 94
    },
    {
-    "file": "special_04.png",
-    "ticks": 2,
-    "w": 80,
+    "file": "jab_02.png",
+    "ticks": 1,
+    "w": 74,
+    "h": 94
+   },
+   {
+    "file": "jab_03.png",
+    "ticks": 3,
+    "w": 85,
     "h": 95
    },
    {
-    "file": "special_05.png",
+    "file": "jab_04.png",
+    "ticks": 3,
+    "w": 74,
+    "h": 94
+   },
+   {
+    "file": "jab_05.png",
     "ticks": 2,
     "w": 62,
     "h": 94
    },
    {
-    "file": "special_06.png",
+    "file": "jab_06.png",
     "ticks": 2,
     "w": 61,
+    "h": 96
+   }
+  ]
+ },
+ "punch2": {
+  "action": 305,
+  "frames": [
+   {
+    "file": "punch2_00.png",
+    "ticks": 2,
+    "w": 67,
+    "h": 97
+   },
+   {
+    "file": "punch2_01.png",
+    "ticks": 2,
+    "w": 61,
+    "h": 98
+   },
+   {
+    "file": "punch2_02.png",
+    "ticks": 1,
+    "w": 90,
+    "h": 105
+   },
+   {
+    "file": "punch2_03.png",
+    "ticks": 3,
+    "w": 106,
+    "h": 104
+   },
+   {
+    "file": "punch2_04.png",
+    "ticks": 4,
+    "w": 87,
+    "h": 104
+   },
+   {
+    "file": "punch2_05.png",
+    "ticks": 4,
+    "w": 68,
+    "h": 96
+   }
+  ]
+ },
+ "kick": {
+  "action": 310,
+  "frames": [
+   {
+    "file": "kick_00.png",
+    "ticks": 2,
+    "w": 64,
+    "h": 98
+   },
+   {
+    "file": "kick_01.png",
+    "ticks": 3,
+    "w": 60,
+    "h": 98
+   },
+   {
+    "file": "kick_02.png",
+    "ticks": 2,
+    "w": 64,
+    "h": 97
+   },
+   {
+    "file": "kick_03.png",
+    "ticks": 1,
+    "w": 66,
+    "h": 96
+   },
+   {
+    "file": "kick_04.png",
+    "ticks": 1,
+    "w": 62,
+    "h": 92
+   },
+   {
+    "file": "kick_05.png",
+    "ticks": 5,
+    "w": 101,
+    "h": 88
+   },
+   {
+    "file": "kick_06.png",
+    "ticks": 4,
+    "w": 94,
+    "h": 91
+   },
+   {
+    "file": "kick_07.png",
+    "ticks": 4,
+    "w": 62,
+    "h": 92
+   },
+   {
+    "file": "kick_08.png",
+    "ticks": 3,
+    "w": 66,
+    "h": 96
+   },
+   {
+    "file": "kick_09.png",
+    "ticks": 3,
+    "w": 64,
+    "h": 97
+   },
+   {
+    "file": "kick_10.png",
+    "ticks": 2,
+    "w": 60,
+    "h": 98
+   },
+   {
+    "file": "kick_11.png",
+    "ticks": 2,
+    "w": 64,
+    "h": 98
+   }
+  ]
+ },
+ "kick2": {
+  "action": 315,
+  "frames": [
+   {
+    "file": "kick2_00.png",
+    "ticks": 1,
+    "w": 66,
+    "h": 100
+   },
+   {
+    "file": "kick2_01.png",
+    "ticks": 3,
+    "w": 64,
+    "h": 100
+   },
+   {
+    "file": "kick2_02.png",
+    "ticks": 5,
+    "w": 81,
+    "h": 100
+   },
+   {
+    "file": "kick2_03.png",
+    "ticks": 3,
+    "w": 82,
+    "h": 98
+   },
+   {
+    "file": "kick2_04.png",
+    "ticks": 6,
+    "w": 96,
+    "h": 99
+   },
+   {
+    "file": "kick2_05.png",
+    "ticks": 6,
+    "w": 110,
+    "h": 98
+   },
+   {
+    "file": "kick2_06.png",
+    "ticks": 3,
+    "w": 66,
+    "h": 98
+   },
+   {
+    "file": "kick2_07.png",
+    "ticks": 4,
+    "w": 76,
+    "h": 98
+   },
+   {
+    "file": "kick2_08.png",
+    "ticks": 4,
+    "w": 82,
+    "h": 98
+   },
+   {
+    "file": "kick2_09.png",
+    "ticks": 3,
+    "w": 71,
+    "h": 100
+   },
+   {
+    "file": "kick2_10.png",
+    "ticks": 2,
+    "w": 70,
+    "h": 103
+   },
+   {
+    "file": "kick2_11.png",
+    "ticks": 2,
+    "w": 68,
+    "h": 101
+   }
+  ]
+ },
+ "low_punch": {
+  "action": 400,
+  "frames": [
+   {
+    "file": "low_punch_00.png",
+    "ticks": 2,
+    "w": 78,
+    "h": 63
+   },
+   {
+    "file": "low_punch_01.png",
+    "ticks": 1,
+    "w": 88,
+    "h": 64
+   },
+   {
+    "file": "low_punch_02.png",
+    "ticks": 3,
+    "w": 96,
+    "h": 62
+   },
+   {
+    "file": "low_punch_03.png",
+    "ticks": 2,
+    "w": 90,
+    "h": 62
+   },
+   {
+    "file": "low_punch_04.png",
+    "ticks": 1,
+    "w": 88,
+    "h": 64
+   },
+   {
+    "file": "low_punch_05.png",
+    "ticks": 1,
+    "w": 78,
+    "h": 63
+   }
+  ]
+ },
+ "low_kick": {
+  "action": 410,
+  "frames": [
+   {
+    "file": "low_kick_00.png",
+    "ticks": 2,
+    "w": 82,
+    "h": 65
+   },
+   {
+    "file": "low_kick_01.png",
+    "ticks": 2,
+    "w": 66,
+    "h": 56
+   },
+   {
+    "file": "low_kick_02.png",
+    "ticks": 2,
+    "w": 68,
+    "h": 49
+   },
+   {
+    "file": "low_kick_03.png",
+    "ticks": 3,
+    "w": 66,
+    "h": 47
+   },
+   {
+    "file": "low_kick_04.png",
+    "ticks": 6,
+    "w": 118,
+    "h": 49
+   },
+   {
+    "file": "low_kick_05.png",
+    "ticks": 4,
+    "w": 114,
+    "h": 50
+   },
+   {
+    "file": "low_kick_06.png",
+    "ticks": 3,
+    "w": 66,
+    "h": 47
+   },
+   {
+    "file": "low_kick_07.png",
+    "ticks": 2,
+    "w": 68,
+    "h": 49
+   },
+   {
+    "file": "low_kick_08.png",
+    "ticks": 2,
+    "w": 66,
+    "h": 56
+   },
+   {
+    "file": "low_kick_09.png",
+    "ticks": 2,
+    "w": 82,
+    "h": 65
+   }
+  ]
+ },
+ "air_punch": {
+  "action": 500,
+  "frames": [
+   {
+    "file": "air_punch_00.png",
+    "ticks": 1,
+    "w": 58,
+    "h": 97
+   },
+   {
+    "file": "air_punch_01.png",
+    "ticks": 2,
+    "w": 66,
+    "h": 93
+   },
+   {
+    "file": "air_punch_02.png",
+    "ticks": 1,
+    "w": 59,
+    "h": 86
+   },
+   {
+    "file": "air_punch_03.png",
+    "ticks": 4,
+    "w": 68,
+    "h": 89
+   },
+   {
+    "file": "air_punch_04.png",
+    "ticks": 6,
+    "w": 66,
+    "h": 93
+   },
+   {
+    "file": "air_punch_05.png",
+    "ticks": 3,
+    "w": 58,
+    "h": 97
+   }
+  ]
+ },
+ "air_kick": {
+  "action": 510,
+  "frames": [
+   {
+    "file": "air_kick_00.png",
+    "ticks": 2,
+    "w": 52,
+    "h": 98
+   },
+   {
+    "file": "air_kick_01.png",
+    "ticks": 1,
+    "w": 50,
+    "h": 86
+   },
+   {
+    "file": "air_kick_02.png",
+    "ticks": 2,
+    "w": 50,
+    "h": 60
+   },
+   {
+    "file": "air_kick_03.png",
+    "ticks": 2,
+    "w": 48,
+    "h": 56
+   },
+   {
+    "file": "air_kick_04.png",
+    "ticks": 3,
+    "w": 114,
+    "h": 61
+   },
+   {
+    "file": "air_kick_05.png",
+    "ticks": 3,
+    "w": 111,
+    "h": 61
+   },
+   {
+    "file": "air_kick_06.png",
+    "ticks": 2,
+    "w": 48,
+    "h": 56
+   },
+   {
+    "file": "air_kick_07.png",
+    "ticks": 2,
+    "w": 50,
+    "h": 60
+   },
+   {
+    "file": "air_kick_08.png",
+    "ticks": 2,
+    "w": 50,
+    "h": 86
+   },
+   {
+    "file": "air_kick_09.png",
+    "ticks": 2,
+    "w": 52,
+    "h": 98
+   }
+  ]
+ },
+ "punch3": {
+  "action": 900,
+  "frames": [
+   {
+    "file": "punch3_00.png",
+    "ticks": 1,
+    "w": 64,
+    "h": 98
+   },
+   {
+    "file": "punch3_01.png",
+    "ticks": 1,
+    "w": 66,
+    "h": 98
+   },
+   {
+    "file": "punch3_02.png",
+    "ticks": 1,
+    "w": 65,
+    "h": 97
+   },
+   {
+    "file": "punch3_03.png",
+    "ticks": 2,
+    "w": 134,
+    "h": 86
+   },
+   {
+    "file": "punch3_04.png",
+    "ticks": 2,
+    "w": 125,
+    "h": 87
+   },
+   {
+    "file": "punch3_05.png",
+    "ticks": 2,
+    "w": 134,
+    "h": 86
+   },
+   {
+    "file": "punch3_06.png",
+    "ticks": 2,
+    "w": 125,
+    "h": 87
+   },
+   {
+    "file": "punch3_07.png",
+    "ticks": 3,
+    "w": 86,
+    "h": 91
+   },
+   {
+    "file": "punch3_08.png",
+    "ticks": 2,
+    "w": 65,
+    "h": 97
+   },
+   {
+    "file": "punch3_09.png",
+    "ticks": 1,
+    "w": 66,
+    "h": 98
+   },
+   {
+    "file": "punch3_10.png",
+    "ticks": 1,
+    "w": 64,
+    "h": 98
+   },
+   {
+    "file": "punch3_11.png",
+    "ticks": 3,
+    "w": 56,
+    "h": 96
+   },
+   {
+    "file": "punch3_12.png",
+    "ticks": 2,
+    "w": 50,
+    "h": 96
+   },
+   {
+    "file": "punch3_13.png",
+    "ticks": 6,
+    "w": 48,
+    "h": 98
+   },
+   {
+    "file": "punch3_14.png",
+    "ticks": 3,
+    "w": 88,
+    "h": 102
+   },
+   {
+    "file": "punch3_15.png",
+    "ticks": 4,
+    "w": 90,
+    "h": 92
+   },
+   {
+    "file": "punch3_16.png",
+    "ticks": 10,
+    "w": 86,
+    "h": 89
+   },
+   {
+    "file": "punch3_17.png",
+    "ticks": 3,
+    "w": 78,
+    "h": 91
+   }
+  ]
+ },
+ "uppercut": {
+  "action": 920,
+  "frames": [
+   {
+    "file": "uppercut_00.png",
+    "ticks": 2,
+    "w": 58,
+    "h": 81
+   },
+   {
+    "file": "uppercut_01.png",
+    "ticks": 2,
+    "w": 58,
+    "h": 80
+   },
+   {
+    "file": "uppercut_02.png",
+    "ticks": 2,
+    "w": 62,
+    "h": 70
+   },
+   {
+    "file": "uppercut_03.png",
+    "ticks": 2,
+    "w": 62,
+    "h": 67
+   },
+   {
+    "file": "uppercut_04.png",
+    "ticks": 2,
+    "w": 54,
+    "h": 86
+   },
+   {
+    "file": "uppercut_05.png",
+    "ticks": 6,
+    "w": 53,
+    "h": 124
+   },
+   {
+    "file": "uppercut_06.png",
+    "ticks": 4,
+    "w": 42,
+    "h": 122
+   },
+   {
+    "file": "uppercut_07.png",
+    "ticks": 4,
+    "w": 68,
+    "h": 107
+   },
+   {
+    "file": "uppercut_08.png",
+    "ticks": 6,
+    "w": 50,
+    "h": 92
+   }
+  ]
+ },
+ "hurt": {
+  "action": 5000,
+  "frames": [
+   {
+    "file": "hurt_00.png",
+    "ticks": 3,
+    "w": 65,
+    "h": 95
+   },
+   {
+    "file": "hurt_01.png",
+    "ticks": 4,
+    "w": 65,
+    "h": 95
+   }
+  ]
+ },
+ "knock": {
+  "action": 5030,
+  "frames": [
+   {
+    "file": "knock_00.png",
+    "ticks": 3,
+    "w": 42,
     "h": 96
    }
   ]
