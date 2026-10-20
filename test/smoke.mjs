@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 6) throw new Error(`Лобби: ожидалось 6 уровней, got ${levelCards}`);
+    if (levelCards !== 7) throw new Error(`Лобби: ожидалось 7 уровней, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
     if (lockedCards !== 0) throw new Error('Лобби: все уровни должны быть открыты');
-    results.push('✓ Лобби: 6 уровней, все открыты');
+    results.push('✓ Лобби: 7 уровней, все открыты');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -398,6 +398,17 @@ async function main() {
     }
     await page.waitForSelector('.scroll--done', { timeout: 8000 });
     results.push('✓ Уровень 6: свиток проявляется пальцем, код не выдаётся');
+    await page.evaluate(() => window.__secureOsTest.startLevel('level7', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.waitForTimeout(300);
+    for (const want of [2, 3]) {
+      await page.evaluate(() => window.__secureOsTest.pour().solveStage());
+      await page.waitForFunction((w) => window.__secureOsTest.pour().stage() === w, want, { timeout: 5000 });
+    }
+    await page.evaluate(() => window.__secureOsTest.pour().solveStage());
+    await page.waitForFunction(() => document.querySelector('#reward-title')?.textContent.includes('Практика'), null, { timeout: 10000 });
+    results.push('✓ Уровень 7 (переливание): три уровня проходятся, после последнего открывается история без кода');
+
 
 
 
