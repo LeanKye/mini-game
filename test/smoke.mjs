@@ -78,8 +78,8 @@ async function main() {
     const levelCards = await page.locator('.level-card').count();
     if (levelCards !== 7) throw new Error(`Лобби: ожидалось 7 уровней, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
-    if (lockedCards !== 0) throw new Error('Лобби: все уровни должны быть открыты');
-    results.push('✓ Лобби: 7 уровней, все открыты');
+    if (lockedCards !== 6) throw new Error('Лобби: кроме последней игры, все уровни должны быть заблокированы, получили ' + lockedCards);
+    results.push('✓ Лобби: 7 уровней, открыт только последний');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -89,6 +89,16 @@ async function main() {
     await page.waitForTimeout(450);
     results.push('✓ Лобби: переключение уровней');
 
+    // закрытая игра: подсказка про блокировку, запуска нет
+    await page.evaluate(() => window.__secureOsTest.goTo(0));
+    await page.waitForTimeout(450);
+    await page.click('.level-card.is-active');
+    await page.waitForSelector('#lobby-hint:not(.hidden)', { timeout: 3000 }).catch(() => null);
+    const lockHintText = await page.locator('#lobby-hint').textContent().catch(() => '');
+    if (!/заблокировано/.test(lockHintText || '')) throw new Error('Лобби: закрытая игра должна показывать «Пока что заблокировано»');
+    results.push('✓ Закрытая игра: «Пока что заблокировано», запуска нет');
+    await page.evaluate(() => window.__secureOsTest.goTo(6));
+    await page.waitForTimeout(450);
     await page.click('.level-card.is-active');
     await page.waitForSelector('#game-intro:not(.hidden)');
     results.push('✓ Перед уровнем показывается объяснение «как играть»');
@@ -97,6 +107,8 @@ async function main() {
     await page.waitForSelector('#screen-game:not(.hidden)');
     await page.waitForSelector('#game-canvas');
     results.push('✓ Переход в игру, канвас на месте');
+    await page.evaluate(() => window.__secureOsTest.startLevel('level1', false));
+    await page.waitForSelector('#game-canvas');
 
     const total = await page.textContent('#hud-total');
     if (!Number(total)) throw new Error(`HUD total пустой: "${total}"`);

@@ -7,7 +7,7 @@
 
 export const CONFIG = {
   // временная блокировка сайта: игры не видны, пока флаг включён
-  siteLocked: true,
+  siteLocked: false,
   // ── Как обращаться к ней (можно оставить пустым) ────────
   herName: '',
 
@@ -27,13 +27,13 @@ export const CONFIG = {
   lobbyEyebrow: 'уровни',
   lobbyHint: 'Свайпни влево-вправо и выбери уровень',
   lobbyReturnLabel: 'К уровням',
-  lockedHint: 'Этот уровень ещё не готов',
+  lockedHint: 'Пока что заблокировано',
   levels: [
     {
       id: 'level1',
       name: 'Звёздная тропинка',
       subtitle: 'Уровень 1 · платформер',
-      unlocked: true,
+      unlocked: false,
       gameId: 'game1',
       kind: 'platformer',
       icon: '★',
@@ -45,7 +45,7 @@ export const CONFIG = {
       id: 'level2',
       name: 'Оборона',
       subtitle: 'Уровень 2 · tower defense',
-      unlocked: true,
+      unlocked: false,
       gameId: 'game2',
       puzzle: true,
       puzzleType: 'sequence',
@@ -60,7 +60,7 @@ export const CONFIG = {
       id: 'level3',
       name: 'Бит',
       subtitle: 'Уровень 3 · ритм',
-      unlocked: true,
+      unlocked: false,
       gameId: 'game3',
       kind: 'rhythm',
       icon: '♪',
@@ -74,7 +74,7 @@ export const CONFIG = {
       id: 'level4',
       name: 'Подземелье',
       subtitle: 'Уровень 4 · roguelike',
-      unlocked: true,
+      unlocked: false,
       gameId: 'game4',
       kind: 'roguelike',
       puzzle: true,
@@ -89,7 +89,7 @@ export const CONFIG = {
       id: 'level5',
       name: 'Тень',
       subtitle: 'Уровень 5 · стелс',
-      unlocked: true,
+      unlocked: false,
       gameId: 'game5',
       kind: 'stealth',
       icon: '◐',
@@ -104,7 +104,7 @@ export const CONFIG = {
       id: 'level6',
       name: 'Подземелье',
       subtitle: 'Уровень 6 · бит-эм-ап',
-      unlocked: true,
+      unlocked: false,
       gameId: 'game6',
       kind: 'brawl',
       icon: '✹',
