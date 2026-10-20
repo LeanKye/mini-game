@@ -900,3 +900,21 @@ body {
 }
 .scroll__hint { margin: 0; font-size: 0.85rem; color: var(--ink-soft); text-align: center; }
 .scroll--done .scroll__canvas { box-shadow: 0 10px 24px -12px rgba(255, 200, 90, 0.8); }
+
+
+/* Временная блокировка сайта */
+.site-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1b1636;
+  color: #f3e9ff;
+  padding: 24px;
+}
+.site-lock.hidden { display: none; }
+.site-lock__box { text-align: center; }
+.site-lock__icon { font-size: 64px; margin-bottom: 12px; }
+.site-lock__text { font-size: 1.25rem; font-weight: 800; margin: 0; }

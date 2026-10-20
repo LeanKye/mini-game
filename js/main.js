@@ -755,6 +755,8 @@ function activateLobbyCard(index) {
 }
 
 function init() {
+  const lockEl = document.getElementById('site-lock');
+  if (lockEl && CONFIG.siteLocked && window.__ENABLE_TEST_HOOKS !== true) lockEl.classList.remove('hidden');
   fillStatic();
   fillBackgroundDeco();
   buildLevelCards();
