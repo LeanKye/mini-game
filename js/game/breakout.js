@@ -1,5 +1,6 @@
-// Арканоид: платформа, мяч и кирпичи. Три этапа с ростом сложности.
+// Арканоид: платформа, шары и кирпичи. Три этапа, бонусы-улучшатели.
 // Управление платформой: стрелки ◀ ▶ (кнопки внизу или клавиатура), либо перетаскивание по полю.
+// Жизнь теряется, только когда потеряны ВСЕ шары (важно для бонуса «дублирование»).
 
 const VIEW_H = 512;
 const MIN_W = 360;
@@ -8,6 +9,9 @@ const PADDLE_SPEED = 430;
 const BALL_R = 7;
 const LIVES = 3;
 const READY_DELAY = 1.1;
+const MAX_BALLS = 10;
+const DROP_SPEED = 150;
+const DROP_CHANCE = 0.24;
 
 // Кирпичи: '1','2','3' - число попаданий, '.' - пусто.
 export const BREAKOUT_STAGES = [
@@ -51,6 +55,24 @@ export const BREAKOUT_STAGES = [
 
 const BRICK_COLOR = { 3: '#d9568f', 2: '#ff9f1c', 1: '#4cc9f0' };
 
+// Бонусы: M - дублирование шаров, W - широкая платформа, S - медленный шар, L - жизнь.
+const DROPS = [
+  { type: 'M', weight: 30, color: '#4cc9f0', label: 'M' },
+  { type: 'W', weight: 26, color: '#ffd166', label: 'W' },
+  { type: 'S', weight: 26, color: '#06d6a0', label: 'S' },
+  { type: 'L', weight: 14, color: '#ff6b8b', label: 'L' },
+];
+const DROP_TOTAL = DROPS.reduce((s, d) => s + d.weight, 0);
+
+function pickDrop() {
+  let r = Math.random() * DROP_TOTAL;
+  for (const d of DROPS) {
+    r -= d.weight;
+    if (r <= 0) return d;
+  }
+  return DROPS[0];
+}
+
 function rr(ctx, x, y, w, h, r) {
   const k = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -88,11 +110,18 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
   let timer = READY_DELAY;
   let toast = '';
   let toastT = 0;
-  let dir = 1; // горизонтальное направление запуска мяча (чередуем)
+  let dir = 1;
+  let wideT = 0;
+  let slowT = 0;
 
-  const paddle = { x: 0, y: 0, w: 100, h: 12 };
-  const ball = { x: 0, y: 0, vx: 0, vy: 0, r: BALL_R };
+  const paddle = { x: 0, y: 0, w: 100, baseW: 100, h: 12 };
+  let balls = [];
+  let drops = [];
   const input = { left: false, right: false };
+
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
 
   function setScale() {
     const rect = canvas.getBoundingClientRect();
@@ -128,13 +157,16 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
       for (let x = 0; x < cols; x++) {
         const ch = S.rows[y][x];
         if (ch === '.') continue;
-        const hits = Number(ch);
-        bricks.push({ gx: x, gy: y, hits, alive: true });
+        bricks.push({ gx: x, gy: y, hits: Number(ch), alive: true });
       }
     }
     if (!keepScore) score = 0;
     lives = LIVES;
-    paddle.w = Math.max(70, Math.min(140, Math.round(VIEW.w * 0.22)));
+    wideT = 0;
+    slowT = 0;
+    drops = [];
+    paddle.baseW = clamp(Math.round(VIEW.w * 0.22), 70, 140);
+    paddle.w = paddle.baseW;
     paddle.x = (VIEW.w - paddle.w) / 2;
     paddle.y = VIEW_H - 72;
     resetBall();
@@ -144,18 +176,18 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
   function resetBall() {
     mode = 'ready';
     timer = READY_DELAY;
-    ball.x = paddle.x + paddle.w / 2;
-    ball.y = paddle.y - ball.r - 1;
-    ball.vx = 0;
-    ball.vy = 0;
+    drops = [];
+    balls = [{ x: paddle.x + paddle.w / 2, y: paddle.y - BALL_R - 1, vx: 0, vy: 0, r: BALL_R }];
   }
 
   function launch() {
-    if (mode !== 'ready') return;
+    if (mode !== 'ready' || !balls.length) return;
     mode = 'play';
-    const a = 0.5; // угол запуска
-    ball.vx = Math.cos(a) * speed * dir;
-    ball.vy = -Math.sin(a) * speed;
+    const b = balls[0];
+    const a = 0.5;
+    const sp = speed;
+    b.vx = Math.cos(a) * sp * dir;
+    b.vy = -Math.sin(a) * sp;
     dir *= -1;
   }
 
@@ -165,23 +197,30 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
     return n;
   }
 
-  function loseLife() {
-    lives -= 1;
-    if (lives <= 0) {
-      mode = 'lost';
-      timer = 1.1;
-      toast = 'Все жизни потеряны - этап заново';
-      toastT = 1.1;
-    } else {
-      resetBall();
+  // Дублирование: каждому шару добавляем копию под другим углом.
+  function multiball() {
+    const add = [];
+    for (const b of balls) {
+      if (balls.length + add.length >= MAX_BALLS) break;
+      const sp = Math.hypot(b.vx, b.vy) || speed;
+      const ang = Math.atan2(b.vy, b.vx) + 0.55;
+      add.push({ x: b.x, y: b.y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: BALL_R });
     }
+    balls.push(...add);
+    if (balls.length > MAX_BALLS) balls = balls.slice(0, MAX_BALLS);
   }
 
-  function clearStage() {
-    mode = 'clear';
-    timer = 1.2;
-    toast = stageIdx + 1 < BREAKOUT_STAGES.length ? 'Этап пройден! Дальше' : 'Все этапы!';
-    toastT = 1.2;
+  function applyPowerup(type) {
+    if (type === 'M') multiball();
+    else if (type === 'W') wideT = 12;
+    else if (type === 'S') slowT = 10;
+    else if (type === 'L') lives = Math.min(9, lives + 1);
+  }
+
+  function spawnDrop(cx, cy) {
+    if (Math.random() > DROP_CHANCE) return;
+    const d = pickDrop();
+    drops.push({ x: cx, y: cy, vy: DROP_SPEED, type: d.type, color: d.color, label: d.label });
   }
 
   function hitBrick(b) {
@@ -190,10 +229,12 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
     if (b.hits <= 0) {
       b.alive = false;
       score += 10;
+      const { ox, oy, bw, bh } = layout();
+      spawnDrop(ox + b.gx * bw + bw / 2, oy + b.gy * bh + bh / 2);
     }
   }
 
-  function collideBricks() {
+  function collideBricks(ball) {
     const { ox, oy, bw, bh } = layout();
     for (const b of bricks) {
       if (!b.alive) continue;
@@ -221,62 +262,117 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
         ball.y += top < bottom ? ball.r - top : -(ball.r - bottom);
       }
       hitBrick(b);
-      return true;
+      return;
     }
-    return false;
   }
 
-  function moveBall(dt) {
-    const dist = Math.hypot(ball.vx, ball.vy) * dt;
-    const steps = Math.max(1, Math.ceil(dist / (ball.r * 0.8)));
-    const sdt = dt / steps;
-    for (let i = 0; i < steps; i++) {
-      ball.x += ball.vx * sdt;
-      ball.y += ball.vy * sdt;
-      if (ball.x - ball.r < 0) {
-        ball.x = ball.r;
-        ball.vx = Math.abs(ball.vx);
-      } else if (ball.x + ball.r > VIEW.w) {
-        ball.x = VIEW.w - ball.r;
-        ball.vx = -Math.abs(ball.vx);
+  function moveBalls(dt) {
+    const speedScale = slowT > 0 ? 0.62 : 1;
+    const kept = [];
+    for (const ball of balls) {
+      const dist = Math.hypot(ball.vx, ball.vy) * speedScale * dt;
+      const steps = Math.max(1, Math.ceil(dist / (ball.r * 0.8)));
+      const sdt = dt / steps;
+      let lost = false;
+      for (let i = 0; i < steps; i++) {
+        ball.x += ball.vx * speedScale * sdt;
+        ball.y += ball.vy * speedScale * sdt;
+        if (ball.x - ball.r < 0) {
+          ball.x = ball.r;
+          ball.vx = Math.abs(ball.vx);
+        } else if (ball.x + ball.r > VIEW.w) {
+          ball.x = VIEW.w - ball.r;
+          ball.vx = -Math.abs(ball.vx);
+        }
+        if (ball.y - ball.r < 0) {
+          ball.y = ball.r;
+          ball.vy = Math.abs(ball.vy);
+        }
+        collideBricks(ball);
+        if (
+          ball.vy > 0 &&
+          ball.y + ball.r >= paddle.y &&
+          ball.y - ball.r <= paddle.y + paddle.h &&
+          ball.x >= paddle.x - ball.r &&
+          ball.x <= paddle.x + paddle.w + ball.r
+        ) {
+          ball.y = paddle.y - ball.r;
+          const rel = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+          const ang = clamp(rel * 1.05, -1.05, 1.05);
+          const sp = Math.hypot(ball.vx, ball.vy) || speed;
+          ball.vx = Math.sin(ang) * sp;
+          ball.vy = -Math.abs(Math.cos(ang) * sp);
+        }
+        if (ball.y - ball.r > VIEW.h) {
+          lost = true;
+          break;
+        }
+        if (bricksLeft() === 0) {
+          clearStage();
+          return;
+        }
       }
-      if (ball.y - ball.r < 0) {
-        ball.y = ball.r;
-        ball.vy = Math.abs(ball.vy);
-      }
-      collideBricks();
-      if (bricksLeft() === 0) {
-        clearStage();
-        return;
-      }
-      // платформа
-      if (
-        ball.vy > 0 &&
-        ball.y + ball.r >= paddle.y &&
-        ball.y - ball.r <= paddle.y + paddle.h &&
-        ball.x >= paddle.x - ball.r &&
-        ball.x <= paddle.x + paddle.w + ball.r
-      ) {
-        ball.y = paddle.y - ball.r;
-        const rel = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
-        const ang = Math.max(-1.05, Math.min(1.05, rel * 1.05));
-        const sp = Math.hypot(ball.vx, ball.vy);
-        ball.vx = Math.sin(ang) * sp;
-        ball.vy = -Math.abs(Math.cos(ang) * sp);
-      }
-      if (ball.y - ball.r > VIEW.h) {
-        loseLife();
-        return;
-      }
+      if (!lost) kept.push(ball);
     }
+    balls = kept;
+    // жизнь теряется только когда не осталось ни одного шара
+    if (balls.length === 0) loseLife();
+  }
+
+  function moveDrops(dt) {
+    const kept = [];
+    for (const d of drops) {
+      d.y += d.vy * dt;
+      if (
+        d.y + 9 >= paddle.y &&
+        d.y - 9 <= paddle.y + paddle.h &&
+        d.x >= paddle.x &&
+        d.x <= paddle.x + paddle.w
+      ) {
+        applyPowerup(d.type);
+        continue;
+      }
+      if (d.y - 9 > VIEW.h) continue;
+      kept.push(d);
+    }
+    drops = kept;
+  }
+
+  function loseLife() {
+    lives -= 1;
+    if (lives <= 0) {
+      mode = 'lost';
+      timer = 1.1;
+      toast = 'Все жизни потеряны - этап заново';
+      toastT = 1.1;
+    } else {
+      resetBall();
+    }
+  }
+
+  function clearStage() {
+    mode = 'clear';
+    timer = 1.2;
+    toast = stageIdx + 1 < BREAKOUT_STAGES.length ? 'Этап пройден! Дальше' : 'Все этапы!';
+    toastT = 1.2;
   }
 
   function step(dt) {
     if (toastT > 0) toastT -= dt;
-    // платформа
+    if (wideT > 0) wideT -= dt;
+    if (slowT > 0) slowT -= dt;
+
+    // ширина платформы с учётом бонуса
+    const targetW = Math.round(paddle.baseW * (wideT > 0 ? 1.55 : 1));
+    if (targetW !== paddle.w) {
+      const cx = paddle.x + paddle.w / 2;
+      paddle.w = targetW;
+      paddle.x = clamp(cx - targetW / 2, 0, VIEW.w - targetW);
+    }
+
     if (input.left) paddle.x -= PADDLE_SPEED * dt;
     if (input.right) paddle.x += PADDLE_SPEED * dt;
-    paddle.x = Math.max(0, Math.min(VIEW.w - paddle.w, paddle.x));
+    paddle.x = clamp(paddle.x, 0, VIEW.w - paddle.w);
 
     if (mode === 'clear') {
       timer -= dt;
@@ -292,13 +388,17 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
       return;
     }
     if (mode === 'ready') {
-      ball.x = paddle.x + paddle.w / 2;
-      ball.y = paddle.y - ball.r - 1;
+      const b = balls[0];
+      if (b) {
+        b.x = paddle.x + paddle.w / 2;
+        b.y = paddle.y - b.r - 1;
+      }
       timer -= dt;
       if (timer <= 0) launch();
       return;
     }
-    moveBall(dt);
+    moveBalls(dt);
+    moveDrops(dt);
   }
 
   function finishRun() {
@@ -335,7 +435,7 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
     ctx.fillText(hearts, VIEW.w / 2, 68);
     ctx.fillStyle = '#d9cdf5';
     ctx.font = "600 13px 'Nunito', sans-serif";
-    ctx.fillText(`Очки: ${score}   ·   Кирпичей: ${bricksLeft()}`, VIEW.w / 2, 92);
+    ctx.fillText(`Очки: ${score}   ·   Кирпичей: ${bricksLeft()}   ·   Шаров: ${balls.length}`, VIEW.w / 2, 92);
 
     const { ox, oy, bw, bh } = layout();
     for (const b of bricks) {
@@ -356,26 +456,50 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
     }
 
     // платформа
-    ctx.fillStyle = '#c9b8ff';
+    ctx.fillStyle = wideT > 0 ? '#ffe066' : '#c9b8ff';
     rr(ctx, paddle.x, paddle.y, paddle.w, paddle.h, 6);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     rr(ctx, paddle.x + 3, paddle.y + 2, paddle.w - 6, 3, 2);
     ctx.fill();
 
-    // мяч
-    ctx.fillStyle = '#fff3d6';
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,180,90,0.9)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    // бонусы
+    for (const d of drops) {
+      ctx.fillStyle = d.color;
+      rr(ctx, d.x - 11, d.y - 9, 22, 18, 6);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(10,6,24,0.55)';
+      ctx.lineWidth = 1.5;
+      rr(ctx, d.x - 11, d.y - 9, 22, 18, 6);
+      ctx.stroke();
+      ctx.fillStyle = '#1a1030';
+      ctx.font = "800 12px 'Nunito', sans-serif";
+      ctx.fillText(d.label, d.x, d.y + 1);
+    }
 
+    // шары
+    for (const b of balls) {
+      ctx.fillStyle = '#fff3d6';
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,180,90,0.9)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // активные бонусы
+    const fx = [];
+    if (wideT > 0) fx.push(`Шире ${Math.ceil(wideT)}с`);
+    if (slowT > 0) fx.push(`Медленно ${Math.ceil(slowT)}с`);
     ctx.fillStyle = '#b9a8e0';
     ctx.font = "600 12px 'Nunito', sans-serif";
-    ctx.textAlign = 'center';
-    ctx.fillText('Держи ◀ ▶ внизу, чтобы двигать платформу', VIEW.w / 2, VIEW.h - 24);
+    ctx.fillText('Держи ◀ ▶ внизу   ·   лови бонусы M·W·S·L', VIEW.w / 2, VIEW.h - 30);
+    if (fx.length) {
+      ctx.fillStyle = '#7dffc4';
+      ctx.font = "700 13px 'Nunito', sans-serif";
+      ctx.fillText(fx.join('   '), VIEW.w / 2, VIEW.h - 12);
+    }
     if (mode === 'ready') {
       ctx.fillStyle = '#ffe066';
       ctx.font = "700 14px 'Nunito', sans-serif";
@@ -423,14 +547,14 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
   function onPointerDown(e) {
     const q = toLogical(e.clientX, e.clientY);
     drag = { id: e.pointerId };
-    paddle.x = Math.max(0, Math.min(VIEW.w - paddle.w, q.x - paddle.w / 2));
+    paddle.x = clamp(q.x - paddle.w / 2, 0, VIEW.w - paddle.w);
     if (mode === 'ready') launch();
   }
 
   function onPointerMove(e) {
     if (!drag || e.pointerId !== drag.id) return;
     const q = toLogical(e.clientX, e.clientY);
-    paddle.x = Math.max(0, Math.min(VIEW.w - paddle.w, q.x - paddle.w / 2));
+    paddle.x = clamp(q.x - paddle.w / 2, 0, VIEW.w - paddle.w);
   }
 
   function onPointerUp(e) {
@@ -532,6 +656,7 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
         stage: stageIdx + 1,
         stages: BREAKOUT_STAGES.length,
         bricks: bricksLeft(),
+        balls: balls.length,
         lives,
         score,
         mode,
@@ -541,22 +666,44 @@ export function createBreakout(canvas, { controls = {}, onHint, onWin } = {}) {
     test: {
       stage: () => stageIdx + 1,
       bricks: () => bricksLeft(),
+      balls: () => balls.length,
       lives: () => lives,
       score: () => score,
       paddleX: () => paddle.x,
-      ball: () => ({ x: ball.x, y: ball.y }),
+      paddleW: () => paddle.w,
       mode: () => mode,
+      ball: () => (balls[0] ? { x: balls[0].x, y: balls[0].y } : null),
       state: () => ({
         stage: stageIdx + 1,
         bricks: bricksLeft(),
+        balls: balls.length,
         lives,
         score,
         mode,
         paddleX: paddle.x,
-        ball: { x: ball.x, y: ball.y },
+        ball: balls[0] ? { x: balls[0].x, y: balls[0].y } : null,
       }),
       // тестовые хуки
       launch: () => launch(),
+      give: (type) => applyPowerup(type),
+      // положить бонус над платформой (для проверки выпадения и отрисовки)
+      spawnDrop: (type) => {
+        const d = DROPS.find((x) => x.type === type) || DROPS[0];
+        drops.push({
+          x: paddle.x + paddle.w / 2,
+          y: paddle.y - 110,
+          vy: DROP_SPEED,
+          type: d.type,
+          color: d.color,
+          label: d.label,
+        });
+      },
+      // имитирует потерю одного шара (как падение вниз): жизнь тратится только когда шаров не осталось
+      dropBall: () => {
+        if (balls.length) balls.pop();
+        if (balls.length === 0) loseLife();
+        return balls.length;
+      },
       // снять все кирпичи текущего этапа и засчитать прохождение
       clearStage: () => {
         for (const b of bricks) b.alive = false;

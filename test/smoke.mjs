@@ -489,6 +489,36 @@ async function main() {
     }
     results.push('✓ Уровень 9 (арканоид): этап стартует, стрелка двигает платформу, мяч запускается');
 
+    // бонусы: удвоение шаров и потеря жизни только когда шаров не осталось
+    const lifeTest = await page.evaluate(() => {
+      const t = window.__secureOsTest.breakout();
+      const startLives = t.lives();
+      t.give('M');
+      const afterMulti = { balls: t.balls(), lives: t.lives() };
+      while (t.balls() > 1) t.dropBall();
+      const withOneLeft = { balls: t.balls(), lives: t.lives() };
+      t.dropBall();
+      const afterLast = { balls: t.balls(), lives: t.lives() };
+      return { startLives, afterMulti, withOneLeft, afterLast };
+    });
+    if (lifeTest.afterMulti.balls < 2) {
+      throw new Error('Арканоид: бонус M не дублирует шары (' + lifeTest.afterMulti.balls + ')');
+    }
+    if (lifeTest.withOneLeft.lives !== lifeTest.startLives) {
+      throw new Error('Арканоид: потеря шара не должна тратить жизнь, пока есть другие шары');
+    }
+    if (lifeTest.afterLast.lives !== lifeTest.startLives - 1) {
+      throw new Error('Арканоид: потеря последнего шара должна списывать ровно одну жизнь');
+    }
+    results.push('✓ Уровень 9 (арканоид): бонус M дублирует шары; жизнь списывается только за последний шар');
+
+    const baseW = await page.evaluate(() => window.__secureOsTest.breakout().paddleW());
+    await page.evaluate(() => window.__secureOsTest.breakout().give('W'));
+    await page.waitForTimeout(150);
+    const wideW = await page.evaluate(() => window.__secureOsTest.breakout().paddleW());
+    if (!(wideW > baseW)) throw new Error('Арканоид: бонус W не расширяет платформу (' + baseW + ' → ' + wideW + ')');
+    results.push('✓ Уровень 9 (арканоид): бонус W расширяет платформу');
+
     for (const want of [2, 3]) {
       await page.evaluate(() => window.__secureOsTest.breakout().clearStage());
       await page.waitForFunction((w) => window.__secureOsTest.breakout().stage() === w, want, { timeout: 5000 });
