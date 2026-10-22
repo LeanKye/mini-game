@@ -70,19 +70,19 @@ export const SOKOBAN_LEVELS = [
     ],
   },
   {
-    name: 'Классика',
+    name: 'Погрузка',
     rows: [
-      '    #####',
-      '    #   #',
-      '    #$  #',
-      '  ###  $##',
-      '  #  $ $ #',
-      '### # ## #   ######',
-      '#   # ## #####  ..#',
-      '# $  $          ..#',
-      '##### ### #@##  ..#',
-      '    #     #########',
-      '    #######',
+      '##########',
+      '#        #',
+      '# .    . #',
+      '# $    $ #',
+      '#        #',
+      '#   ##   #',
+      '#        #',
+      '# $    $ #',
+      '# .    . #',
+      '#   @    #',
+      '##########',
     ],
   },
 ];
@@ -233,6 +233,13 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
   }
 
   function step(dt) {
+    if (hold) {
+      hold.t -= dt;
+      if (hold.t <= 0) {
+        move(hold.dir);
+        hold.t = 0.14;
+      }
+    }
     if (toastT > 0) toastT -= dt;
     if (winT > 0) {
       winT -= dt;
@@ -258,7 +265,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
   function board() {
     const pad = 16;
     const top = 100;
-    const bottom = 60;
+    const bottom = 176;
     const availW = VIEW.w - pad * 2;
     const availH = VIEW.h - top - bottom;
     const cell = Math.max(8, Math.floor(Math.min(availW / cols, availH / rows)));
@@ -267,6 +274,29 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     const ox = Math.round((VIEW.w - bw) / 2);
     const oy = Math.round(top + (availH - bh) / 2);
     return { cell, ox, oy, bw, bh };
+  }
+
+  // Экранный крест-джойстик и кнопки «Отменить»/«Заново».
+  function controls() {
+    const b = 56;
+    const g = 8;
+    const cx = VIEW.w / 2;
+    const yTop = VIEW.h - 162;
+    const row2 = yTop + b + g;
+    const arrows = [
+      { dir: 'up', x: Math.round(cx - b / 2), y: yTop, w: b, h: b },
+      { dir: 'left', x: Math.round(cx - b / 2 - b - g), y: row2, w: b, h: b },
+      { dir: 'down', x: Math.round(cx - b / 2), y: row2, w: b, h: b },
+      { dir: 'right', x: Math.round(cx + b / 2 + g), y: row2, w: b, h: b },
+    ];
+    const bw = Math.round((VIEW.w - 48) / 2);
+    const undoBtn = { act: 'undo', x: 16, y: VIEW.h - 40, w: bw, h: 30 };
+    const restartBtn = { act: 'restart', x: VIEW.w - 16 - bw, y: VIEW.h - 40, w: bw, h: 30 };
+    return { arrows, undoBtn, restartBtn };
+  }
+
+  function inside(btn, q) {
+    return q.x >= btn.x && q.x <= btn.x + btn.w && q.y >= btn.y && q.y <= btn.y + btn.h;
   }
 
   function rr(x, y, w, h, r) {
@@ -374,6 +404,23 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     ctx.fillText(label, x + w / 2, y + 15);
   }
 
+  function drawPad(btn, glyph) {
+    ctx.fillStyle = 'rgba(20,14,40,0.9)';
+    rr(btn.x, btn.y, btn.w, btn.h, 12);
+    ctx.fill();
+    ctx.strokeStyle = '#c9b8ff';
+    ctx.lineWidth = 2;
+    rr(btn.x, btn.y, btn.w, btn.h, 12);
+    ctx.stroke();
+    ctx.fillStyle = '#e6dcff';
+    ctx.font = `${Math.round(btn.h * 0.46)}px 'Nunito', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, btn.x + btn.w / 2, btn.y + btn.h / 2 + 1);
+  }
+
+  const PAD_GLYPH = { up: '▲', down: '▼', left: '◀', right: '▶' };
+
   function render() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#0f0b1f';
@@ -392,7 +439,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     ctx.fillText(`Уровень ${stageIdx + 1} из ${SOKOBAN_LEVELS.length} · ${SOKOBAN_LEVELS[stageIdx].name}`, VIEW.w / 2, 42);
     ctx.font = "600 13px 'Nunito', sans-serif";
     ctx.fillStyle = '#d9cdf5';
-    ctx.fillText('Протяни палец по полю, чтобы толкнуть ящик на цель', VIEW.w / 2, 70);
+    ctx.fillText('Жми стрелки на экране, чтобы толкнуть ящик на цель', VIEW.w / 2, 70);
     ctx.fillStyle = '#b9a8e0';
     ctx.font = "600 12px 'Nunito', sans-serif";
     ctx.fillText(`Шагов: ${moves} · Толчков: ${pushes}`, VIEW.w / 2, 90);
@@ -423,8 +470,10 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
 
     drawPlayer(ox + (player % cols) * cell, oy + Math.floor(player / cols) * cell, cell);
 
-    drawButton('Отменить', 16, VIEW.h - 46, 130, '#c9b8ff');
-    drawButton('Заново', VIEW.w - 146, VIEW.h - 46, 130, '#ffb3c6');
+    const ctrls = controls();
+    for (const a of ctrls.arrows) drawPad(a, PAD_GLYPH[a.dir]);
+    drawButton('Отменить', ctrls.undoBtn.x, ctrls.undoBtn.y, ctrls.undoBtn.w, '#c9b8ff');
+    drawButton('Заново', ctrls.restartBtn.x, ctrls.restartBtn.y, ctrls.restartBtn.w, '#ffb3c6');
 
     if (toastT > 0 || winT > 0) {
       ctx.fillStyle = 'rgba(20,14,40,0.82)';
@@ -463,20 +512,25 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
   }
 
   let swipe = null;
-
-  function inButton(q, x, w) {
-    return q.x >= x && q.x <= x + w && q.y >= VIEW.h - 46 && q.y <= VIEW.h - 16;
-  }
+  let hold = null;
 
   function onPointerDown(e) {
     e.preventDefault();
     if (!cols) return;
     const q = toLogical(e.clientX, e.clientY);
-    if (inButton(q, 16, 130)) {
+    const ctrls = controls();
+    for (const a of ctrls.arrows) {
+      if (inside(a, q)) {
+        move(a.dir);
+        hold = { id: e.pointerId, dir: a.dir, t: 0.18 };
+        return;
+      }
+    }
+    if (inside(ctrls.undoBtn, q)) {
       undo();
       return;
     }
-    if (inButton(q, VIEW.w - 146, 130)) {
+    if (inside(ctrls.restartBtn, q)) {
       restart();
       return;
     }
@@ -499,6 +553,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
   }
 
   function onPointerUp(e) {
+    if (hold && e.pointerId === hold.id) hold = null;
     if (swipe && e.pointerId === swipe.id) swipe = null;
   }
 
@@ -525,6 +580,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
 
   const onBlur = () => {
     swipe = null;
+    hold = null;
   };
 
   canvas.addEventListener('pointerdown', onPointerDown);
