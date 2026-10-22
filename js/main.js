@@ -6,6 +6,7 @@ import { createRogue } from './game/rogue.js';
 import { createStealth } from './game/stealth.js';
 import { createBrawl } from './game/brawl.js';
 import { createPour } from './game/pour.js';
+import { createSokoban } from './game/sokoban.js';
 import { createScroll } from './scroll.js';
 import { getReward } from './rewards.js';
 
@@ -127,6 +128,12 @@ function startGame(levelId = currentLevelId, withIntro = true) {
   } else if (kind === 'pour') {
     updateTimer(0);
     game = createPour(el.canvas, {
+      onHint: showGameHint,
+      onWin: handleWin,
+    });
+  } else if (kind === 'sokoban') {
+    updateTimer(0);
+    game = createSokoban(el.canvas, {
       onHint: showGameHint,
       onWin: handleWin,
     });
@@ -829,6 +836,7 @@ function init() {
       stealth: () => (game && game.test ? game.test : null),
       brawl: () => (game && game.test ? game.test : null),
       pour: () => (game && game.test ? game.test : null),
+      sokoban: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
       puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),

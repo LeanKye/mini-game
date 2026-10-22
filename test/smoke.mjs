@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 7) throw new Error(`Лобби: ожидалось 7 уровней, got ${levelCards}`);
+    if (levelCards !== 8) throw new Error(`Лобби: ожидалось 8 уровней, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
-    if (lockedCards !== 6) throw new Error('Лобби: кроме последней игры, все уровни должны быть заблокированы, получили ' + lockedCards);
-    results.push('✓ Лобби: 7 уровней, открыт только последний');
+    if (lockedCards !== 7) throw new Error('Лобби: кроме последней игры, все уровни должны быть заблокированы, получили ' + lockedCards);
+    results.push('✓ Лобби: 8 уровней, открыт только последний');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -97,7 +97,7 @@ async function main() {
     const lockHintText = await page.locator('#lobby-hint').textContent().catch(() => '');
     if (!/заблокировано/.test(lockHintText || '')) throw new Error('Лобби: закрытая игра должна показывать «Пока что заблокировано»');
     results.push('✓ Закрытая игра: «Пока что заблокировано», запуска нет');
-    await page.evaluate(() => window.__secureOsTest.goTo(6));
+    await page.evaluate(() => window.__secureOsTest.goTo(7));
     await page.waitForTimeout(450);
     await page.click('.level-card.is-active');
     await page.waitForSelector('#game-intro:not(.hidden)');
@@ -421,7 +421,41 @@ async function main() {
     await page.waitForFunction(() => document.querySelector('#reward-title')?.textContent.includes('Практика'), null, { timeout: 10000 });
     results.push('✓ Уровень 7 (переливание): три уровня проходятся, после последнего открывается история без кода');
 
+    await page.evaluate(() => window.__secureOsTest.startLevel('level8', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.waitForTimeout(300);
+    const sok = await page.evaluate(() => {
+      const s = window.__secureOsTest.sokoban();
+      const st = s.state();
+      return { stage: s.stage(), boxes: st.boxes.length, goals: st.goals.length };
+    });
+    if (sok.stage !== 1) throw new Error('Сокобан: старт должен быть на уровне 1');
+    if (sok.boxes !== sok.goals || sok.boxes < 1) {
+      throw new Error(`Сокобан: ящиков и целей должно быть поровну (${sok.boxes}/${sok.goals})`);
+    }
+    const pushed = await page.evaluate(() => {
+      const s = window.__secureOsTest.sokoban();
+      const before = s.boxes();
+      const ok = s.push('right');
+      return { ok, before, after: s.boxes(), moves: s.moves() };
+    });
+    if (!pushed.ok || pushed.moves !== 1) throw new Error('Сокобан: шаг вправо не сработал');
+    if (JSON.stringify(pushed.before) === JSON.stringify(pushed.after)) {
+      throw new Error('Сокобан: ящик не сдвинулся при толчке');
+    }
+    results.push('✓ Уровень 8 (сокобан): старт, шаг и толчок ящика работают');
 
+    for (const want of [2, 3, 4, 5, 6]) {
+      await page.evaluate(() => window.__secureOsTest.sokoban().solveStage());
+      await page.waitForFunction((w) => window.__secureOsTest.sokoban().stage() === w, want, { timeout: 5000 });
+    }
+    await page.evaluate(() => window.__secureOsTest.sokoban().solveStage());
+    await page.waitForSelector('#screen-reward:not(.hidden)', { timeout: 10000 });
+    const sokStory = await page.evaluate(
+      () => document.querySelector('#reward-story')?.textContent?.trim() || ''
+    );
+    if (!sokStory) throw new Error('Сокобан: после победы экран награды пуст');
+    results.push('✓ Уровень 8 (сокобан): шесть карт проходятся, победа ведёт на награду');
 
 
   } catch (err) {
