@@ -7,6 +7,7 @@ import { createStealth } from './game/stealth.js';
 import { createBrawl } from './game/brawl.js';
 import { createPour } from './game/pour.js';
 import { createSokoban } from './game/sokoban.js';
+import { createBreakout } from './game/breakout.js';
 import { createScroll } from './scroll.js';
 import { getReward } from './rewards.js';
 
@@ -101,9 +102,11 @@ function startGame(levelId = currentLevelId, withIntro = true) {
 
   const kind = level.kind || (level.id === 'level1' ? 'platformer' : 'defense');
   const isPlatformer = kind === 'platformer';
+  const usesPads = isPlatformer || kind === 'breakout';
   el.canvas.style.aspectRatio = '';
   if (el.hudStars) el.hudStars.classList.toggle('hidden', !isPlatformer);
-  if (el.controlsBox) el.controlsBox.classList.toggle('hidden', !isPlatformer);
+  if (el.controlsBox) el.controlsBox.classList.toggle('hidden', !usesPads);
+  if (el.controls.jump) el.controls.jump.classList.toggle('hidden', !isPlatformer);
   if (el.skip) el.skip.classList.toggle('hidden', !level.skippable);
   if (el.sync) el.sync.classList.toggle('hidden', kind !== 'rhythm');
   el.hudTitle.textContent = level.name || CONFIG.gameTitle;
@@ -134,6 +137,13 @@ function startGame(levelId = currentLevelId, withIntro = true) {
   } else if (kind === 'sokoban') {
     updateTimer(0);
     game = createSokoban(el.canvas, {
+      onHint: showGameHint,
+      onWin: handleWin,
+    });
+  } else if (kind === 'breakout') {
+    updateTimer(0);
+    game = createBreakout(el.canvas, {
+      controls: el.controls,
       onHint: showGameHint,
       onWin: handleWin,
     });
@@ -837,6 +847,7 @@ function init() {
       brawl: () => (game && game.test ? game.test : null),
       pour: () => (game && game.test ? game.test : null),
       sokoban: () => (game && game.test ? game.test : null),
+      breakout: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
       puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),
