@@ -445,7 +445,17 @@ async function main() {
     }
     results.push('✓ Уровень 8 (сокобан): старт, шаг и толчок ящика работают');
 
-    for (const want of [2, 3, 4, 5, 6]) {
+    // «Подсказка»: на первом уровне решение - два хода вправо
+    await page.evaluate(() => window.__secureOsTest.startLevel('level8', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    const hintTotal = await page.evaluate(() => window.__secureOsTest.sokoban().hintTotal());
+    if (hintTotal !== 2) throw new Error('Сокобан: подсказка первого уровня должна быть из 2 ходов, got ' + hintTotal);
+    await page.evaluate(() => window.__secureOsTest.sokoban().hint());
+    await page.evaluate(() => window.__secureOsTest.sokoban().hint());
+    await page.waitForFunction(() => window.__secureOsTest.sokoban().stage() === 2, null, { timeout: 5000 });
+    results.push('✓ Уровень 8 (сокобан): «Подсказка» ведёт по решению и проходит уровень');
+
+    for (const want of [3, 4, 5, 6]) {
       await page.evaluate(() => window.__secureOsTest.sokoban().solveStage());
       await page.waitForFunction((w) => window.__secureOsTest.sokoban().stage() === w, want, { timeout: 5000 });
     }

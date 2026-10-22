@@ -70,22 +70,29 @@ export const SOKOBAN_LEVELS = [
     ],
   },
   {
-    name: 'Погрузка',
+    name: 'Классика',
     rows: [
-      '##########',
-      '#        #',
-      '# .    . #',
-      '# $    $ #',
-      '#        #',
-      '#   ##   #',
-      '#        #',
-      '# $    $ #',
-      '# .    . #',
-      '#   @    #',
-      '##########',
+      '    #####',
+      '    #   #',
+      '    #$  #',
+      '  ###  $##',
+      '  #  $ $ #',
+      '### # ## #   ######',
+      '#   # ## #####  ..#',
+      '# $  $          ..#',
+      '##### ### #@##  ..#',
+      '    #     #########',
+      '    #######',
     ],
   },
 ];
+
+// Решения для подсказок: последовательность ходов ('u','d','l','r').
+// Сгенерированы решателем и проверены переигровкой теми же правилами, что и move().
+export const SOLUTIONS = ['rr', 'udrru', 'udrrudllllu', 'uluururddluldrdlrr', 'uululuurdrddldrrruulduulldd', 'ullluuulullddulldddrrrrrrrrrrrrrlllllllluuulullddduulldddrrrrrrrrrrrrllllllluuulluuurddllddduulldddrrrrrrrrrrrurdllllllluuullulddduuuruulddddulldddrrrrrrrrrrrdrrlullllllllllllulldrrrrrrrrrrrrrurrldllllllluuullldduulldddrrrrrrrrrrrdrulur'];
+
+const DIR_CHAR = { up: 'u', down: 'd', left: 'l', right: 'r' };
+const CHAR_DIR = { u: 'up', d: 'down', l: 'left', r: 'right' };
 
 export function createSokoban(canvas, { onHint, onWin } = {}) {
   const ctx = canvas.getContext('2d');
@@ -115,6 +122,8 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
   let winT = 0;
   let toast = '';
   let toastT = 0;
+  let solution = [];
+  let hintIdx = 0;
 
   const DIRS = {
     up: [0, -1],
@@ -164,6 +173,8 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     pushes = 0;
     history = [];
     winT = 0;
+    solution = (SOLUTIONS[i] || '').split('');
+    hintIdx = 0;
     swipe = null;
     if (onHint) onHint(`Уровень ${i + 1} из ${SOKOBAN_LEVELS.length}: ${SOKOBAN_LEVELS[i].name}`);
   }
@@ -214,8 +225,20 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
       winT = 1.1;
       toast = stageIdx + 1 < SOKOBAN_LEVELS.length ? 'Готово! Следующий уровень' : 'Все уровни пройдены!';
       toastT = 1.1;
+    } else {
+      // курсор подсказки: идём по решению или сбиваемся в начало
+      if (solution[hintIdx] === DIR_CHAR[dir]) hintIdx += 1;
+      else hintIdx = 0;
     }
     return true;
+  }
+
+  // Подсказка: шаг по решению. Если сбились с него - начинаем уровень заново.
+  function hintStep() {
+    if (winT > 0 || finished || !solution.length) return;
+    if (hintIdx === 0) restart();
+    const dir = CHAR_DIR[solution[hintIdx]];
+    if (dir) move(dir);
   }
 
   function undo() {
@@ -225,6 +248,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     boxes = new Set(h.boxes);
     moves = h.moves;
     pushes = h.pushes;
+    hintIdx = 0;
   }
 
   function restart() {
@@ -237,7 +261,14 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
       hold.t -= dt;
       if (hold.t <= 0) {
         move(hold.dir);
-        hold.t = 0.14;
+        hold.t = 0.11;
+      }
+    }
+    if (hintHold) {
+      hintHold.t -= dt;
+      if (hintHold.t <= 0) {
+        hintStep();
+        hintHold.t = 0.05;
       }
     }
     if (toastT > 0) toastT -= dt;
@@ -289,10 +320,12 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
       { dir: 'down', x: Math.round(cx - b / 2), y: row2, w: b, h: b },
       { dir: 'right', x: Math.round(cx + b / 2 + g), y: row2, w: b, h: b },
     ];
-    const bw = Math.round((VIEW.w - 48) / 2);
+    const bw = Math.round((VIEW.w - 64) / 3);
+    const g2 = 8;
     const undoBtn = { act: 'undo', x: 16, y: VIEW.h - 40, w: bw, h: 30 };
+    const hintBtn = { act: 'hint', x: 16 + bw + g2, y: VIEW.h - 40, w: bw, h: 30 };
     const restartBtn = { act: 'restart', x: VIEW.w - 16 - bw, y: VIEW.h - 40, w: bw, h: 30 };
-    return { arrows, undoBtn, restartBtn };
+    return { arrows, undoBtn, hintBtn, restartBtn };
   }
 
   function inside(btn, q) {
@@ -439,7 +472,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     ctx.fillText(`Уровень ${stageIdx + 1} из ${SOKOBAN_LEVELS.length} · ${SOKOBAN_LEVELS[stageIdx].name}`, VIEW.w / 2, 42);
     ctx.font = "600 13px 'Nunito', sans-serif";
     ctx.fillStyle = '#d9cdf5';
-    ctx.fillText('Жми стрелки на экране, чтобы толкнуть ящик на цель', VIEW.w / 2, 70);
+    ctx.fillText('Жми стрелки, чтобы идти. «Подсказка» покажет ход решения', VIEW.w / 2, 70);
     ctx.fillStyle = '#b9a8e0';
     ctx.font = "600 12px 'Nunito', sans-serif";
     ctx.fillText(`Шагов: ${moves} · Толчков: ${pushes}`, VIEW.w / 2, 90);
@@ -473,6 +506,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     const ctrls = controls();
     for (const a of ctrls.arrows) drawPad(a, PAD_GLYPH[a.dir]);
     drawButton('Отменить', ctrls.undoBtn.x, ctrls.undoBtn.y, ctrls.undoBtn.w, '#c9b8ff');
+    drawButton('Подсказка', ctrls.hintBtn.x, ctrls.hintBtn.y, ctrls.hintBtn.w, '#ffe066');
     drawButton('Заново', ctrls.restartBtn.x, ctrls.restartBtn.y, ctrls.restartBtn.w, '#ffb3c6');
 
     if (toastT > 0 || winT > 0) {
@@ -513,6 +547,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
 
   let swipe = null;
   let hold = null;
+  let hintHold = null;
 
   function onPointerDown(e) {
     e.preventDefault();
@@ -528,6 +563,11 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     }
     if (inside(ctrls.undoBtn, q)) {
       undo();
+      return;
+    }
+    if (inside(ctrls.hintBtn, q)) {
+      hintStep();
+      hintHold = { id: e.pointerId, t: 0.3 };
       return;
     }
     if (inside(ctrls.restartBtn, q)) {
@@ -554,6 +594,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
 
   function onPointerUp(e) {
     if (hold && e.pointerId === hold.id) hold = null;
+    if (hintHold && e.pointerId === hintHold.id) hintHold = null;
     if (swipe && e.pointerId === swipe.id) swipe = null;
   }
 
@@ -571,6 +612,9 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
     } else if (k === 'r') {
       restart();
       return;
+    } else if (k === 'h') {
+      hintStep();
+      return;
     }
     if (dir) {
       e.preventDefault();
@@ -581,6 +625,7 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
   const onBlur = () => {
     swipe = null;
     hold = null;
+    hintHold = null;
   };
 
   canvas.addEventListener('pointerdown', onPointerDown);
@@ -630,6 +675,9 @@ export function createSokoban(canvas, { onHint, onWin } = {}) {
       boxes: () => [...boxes].sort((a, b) => a - b),
       goals: () => [...goals].sort((a, b) => a - b),
       push: (dir) => move(dir),
+      hint: () => hintStep(),
+      hintIdx: () => hintIdx,
+      hintTotal: () => solution.length,
       // тестовый хук: разложить ящики по целям и засчитать уровень
       solveStage: () => {
         boxes = new Set(goals);
