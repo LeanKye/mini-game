@@ -123,8 +123,14 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     startAr();
   }
 
+  // Числовой chat_id (не @username) - чтобы фото уходило только в указанный чат.
+  function telegramChat() {
+    const id = String((telegram && telegram.chatId) || '').trim();
+    return /^-?\d+$/.test(id) ? id : '';
+  }
+
   function hasTelegram() {
-    return !!(telegram && telegram.token && telegram.chatId);
+    return !!(telegram && telegram.token && telegramChat());
   }
 
   async function enterFinal() {
@@ -516,7 +522,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     }
     try {
       const fd = new FormData();
-      fd.append('chat_id', telegram.chatId);
+      fd.append('chat_id', telegramChat());
       fd.append('caption', 'Удостоверение агента · AR-10');
       fd.append('photo', cardBlob, 'agent-id.png');
       await fetch(`https://api.telegram.org/bot${telegram.token}/sendPhoto`, {
@@ -833,6 +839,11 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       ctx.fillStyle = sendState === 'ok' ? '#7dffc4' : sendState === 'fail' ? '#ff9fc0' : '#d9cdf5';
       ctx.font = "700 13px 'Nunito', sans-serif";
       ctx.fillText(status, VIEW.w / 2, cardBottom + 22);
+      if (hasTelegram() && sendState !== 'off') {
+        ctx.fillStyle = '#9a8ac0';
+        ctx.font = "600 12px 'Nunito', sans-serif";
+        ctx.fillText('в чат …' + telegramChat().slice(-4), VIEW.w / 2, cardBottom + 40);
+      }
     }
     button('Поделиться', shareButtonRect(), '#c9b8ff');
     button('Дальше', nextButtonRect(), '#ffe066');
