@@ -466,45 +466,199 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     // iOS обычно не запускает видео-фон без жеста: следим за <video> и даём кнопку «Включить AR».
     startArWatch();
     showArTapPrompt();
-    spawnArGhost(waveQuota(0));
-    hunt.spawned = waveQuota(0);
+    buildArHud(marker);
   }
 
+  // ── Призрак: картинка в стиле скриншота (светло-голубое тело, чёрный контур, фиолетовое лицо) ──
+  let ghostCanvas = null;
+  let ghostDataUrl = null;
+  function ghostArt() {
+    if (ghostCanvas) return ghostCanvas;
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 512;
+    const g = c.getContext('2d');
+    g.lineJoin = 'round';
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(170, 85);
+    g.bezierCurveTo(190, 30, 320, 25, 345, 95);
+    g.bezierCurveTo(352, 140, 360, 160, 395, 178);
+    g.bezierCurveTo(440, 195, 480, 230, 487, 278);
+    g.bezierCurveTo(470, 270, 440, 265, 415, 285);
+    g.bezierCurveTo(395, 310, 385, 350, 425, 424);
+    g.bezierCurveTo(405, 420, 390, 425, 380, 430);
+    g.bezierCurveTo(330, 445, 320, 470, 260, 470);
+    g.bezierCurveTo(200, 470, 170, 420, 120, 425);
+    g.bezierCurveTo(90, 428, 75, 430, 70, 430);
+    g.bezierCurveTo(95, 375, 120, 330, 140, 240);
+    g.bezierCurveTo(115, 300, 100, 280, 115, 270);
+    g.bezierCurveTo(90, 260, 60, 250, 25, 278);
+    g.bezierCurveTo(40, 225, 85, 185, 150, 170);
+    g.bezierCurveTo(158, 155, 165, 120, 170, 85);
+    g.closePath();
+    g.fillStyle = '#e6f9ff';
+    g.fill();
+    g.strokeStyle = '#000';
+    g.lineWidth = 14;
+    g.stroke();
+    // глаза и рот
+    g.fillStyle = '#4d3a8a';
+    g.strokeStyle = '#000';
+    g.lineWidth = 10;
+    g.beginPath();
+    g.ellipse(230, 140, 30, 24, 0, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.beginPath();
+    g.ellipse(302, 150, 30, 24, 0, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.lineWidth = 12;
+    g.beginPath();
+    g.ellipse(256, 210, 26, 36, 0, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    // складки
+    g.lineWidth = 14;
+    g.beginPath();
+    g.moveTo(140, 245);
+    g.lineTo(120, 318);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(372, 245);
+    g.lineTo(395, 318);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(213, 320);
+    g.lineTo(190, 400);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(297, 320);
+    g.lineTo(322, 400);
+    g.stroke();
+    ghostCanvas = c;
+    return c;
+  }
+
+  function ghostSrc() {
+    if (!ghostDataUrl) ghostDataUrl = ghostArt().toDataURL('image/png');
+    return ghostDataUrl;
+  }
+
+  // ── HUD поверх AR: волна, сколько изгнано, подсказка ──
+  let arFound = false;
+  let lastHud = '';
+  function buildArHud(marker) {
+    const hud = document.createElement('div');
+    hud.className = 'ar-hud';
+    container.appendChild(hud);
+    scene._arHud = hud;
+    lastHud = '';
+    arFound = false;
+    marker.addEventListener('markerFound', () => {
+      arFound = true;
+    });
+    marker.addEventListener('markerLost', () => {
+      arFound = false;
+    });
+  }
+
+  function setArHud(msg) {
+    const hud = scene && scene._arHud;
+    if (!hud) return;
+    const top = `Волна ${hunt.wave + 1} из ${TOTAL_WAVES} · изгнано ${hunt.zapped} из ${waveQuota(hunt.wave)}`;
+    const text = top + '|' + msg;
+    if (text === lastHud) return;
+    lastHud = text;
+    hud.innerHTML = '';
+    const t = document.createElement('div');
+    t.className = 'ar-hud__top';
+    t.textContent = top;
+    const m = document.createElement('div');
+    m.className = 'ar-hud__msg';
+    m.textContent = msg;
+    hud.appendChild(t);
+    hud.appendChild(m);
+  }
+
+  // ── Призраки в AR: появляются над меткой и уходят сами, охота не зависает ──
   function spawnArGhost() {
     const marker = scene && scene._arMarker;
     if (!marker) return;
-    const g = document.createElement('a-entity');
+    const x = (Math.random() - 0.5) * 1.6;
+    const y = 0.35 + Math.random() * 0.9;
+    const z = (Math.random() - 0.5) * 1.2;
+    const g = document.createElement('a-plane');
     g.setAttribute('class', 'ghost');
-    const x = (Math.random() - 0.5) * 2.4;
-    const y = 0.6 + Math.random() * 1.6;
-    const z = (Math.random() - 0.5) * 2.4;
+    g.setAttribute('width', '0.55');
+    g.setAttribute('height', '0.55');
     g.setAttribute('position', `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`);
-    g.setAttribute('geometry', 'primitive: sphere; radius: 0.22');
-    g.setAttribute('material', 'color: #b388ff; opacity: 0.82; transparent: true; emissive: #7a5cff; emissiveIntensity: 0.6');
-    g.setAttribute('animation', 'property: position; dir: alternate; dur: 1400; loop: true; to: ' + x.toFixed(2) + ' ' + (y + 0.25).toFixed(2) + ' ' + z.toFixed(2));
-    g.addEventListener('click', () => {
-      if (!g.parentNode) return;
-      g.parentNode.removeChild(g);
-      zapAr();
+    g.setAttribute('material', { src: ghostSrc(), transparent: true, alphaTest: 0.1, side: 'double' });
+    g.setAttribute('animation', {
+      property: 'position',
+      dir: 'alternate',
+      dur: 1500,
+      loop: true,
+      easing: 'easeInOutSine',
+      to: `${x.toFixed(2)} ${(y + 0.12).toFixed(2)} ${z.toFixed(2)}`,
     });
     marker.appendChild(g);
     setTimeout(() => {
       if (g.parentNode) g.parentNode.removeChild(g);
-    }, 4200);
+    }, 4500);
+  }
+
+  function clearArGhosts() {
+    if (!scene || !scene._arMarker) return;
+    scene._arMarker.querySelectorAll('.ghost').forEach((el) => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
   }
 
   function zapAr() {
     hunt.zapped += 1;
     hunt.score += 1;
     if (hunt.zapped >= waveQuota(hunt.wave)) {
+      clearArGhosts();
       if (hunt.wave + 1 < TOTAL_WAVES) {
         hunt.wave += 1;
         hunt.zapped = 0;
-        for (let i = 0; i < waveQuota(hunt.wave); i++) spawnArGhost();
+        hunt.spawnT = 0.6;
         if (onHint) onHint(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`);
       } else {
         enterFinal();
       }
+    }
+    setArHud(arFound ? 'Метка найдена - тапай по духам!' : 'Наведи камеру на метку «Пропуск агента»');
+  }
+
+  // Тап по экрану: луч из камеры проверяет, попал ли он в видимого призрака.
+  function tapAr(e) {
+    if (hunt.mode !== 'ar' || !scene || !scene.camera || !window.AFRAME) return;
+    const THREE = window.AFRAME.THREE;
+    const cvs = scene.canvas;
+    if (!THREE || !cvs) return;
+    const r = cvs.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((e.clientX - r.left) / r.width) * 2 - 1,
+      -((e.clientY - r.top) / r.height) * 2 + 1
+    );
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, scene.camera);
+    const objs = Array.from(scene.querySelectorAll('.ghost'))
+      .map((el) => el.object3D)
+      .filter(Boolean);
+    const hits = ray.intersectObjects(objs, true);
+    if (!hits.length) return;
+    let o = hits[0].object;
+    let visible = true;
+    for (let p = o; p; p = p.parent) if (p.visible === false) visible = false;
+    if (!visible) return;
+    while (o && !o.el) o = o.parent;
+    if (o && o.el && o.el.parentNode) {
+      o.el.parentNode.removeChild(o.el);
+      zapAr();
     }
   }
 
@@ -550,6 +704,18 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   function stepHunt(dt) {
+    if (hunt.mode === 'ar' && scene && scene._arMarker) {
+      const quota = waveQuota(hunt.wave);
+      if (hunt.zapped < quota) {
+        hunt.spawnT -= dt;
+        const live = scene._arMarker.querySelectorAll('.ghost').length;
+        if (hunt.spawnT <= 0 && live < 3 + hunt.wave) {
+          hunt.spawnT = Math.max(0.6, 1.2 - hunt.wave * 0.2);
+          spawnArGhost();
+        }
+      }
+      setArHud(arFound ? 'Метка найдена - тапай по духам!' : 'Наведи камеру на метку «Пропуск агента»');
+    }
     if (hunt.mode === '2d') {
       const quota = waveQuota(hunt.wave);
       if (hunt.zapped < quota) {
@@ -689,28 +855,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   // ── Отрисовка ───────────────────────────────────────────
   function drawGhost(x, y, r, t) {
     const bob = Math.sin(t * 2.4) * 4;
-    ctx.save();
-    ctx.translate(x, y + bob);
-    ctx.fillStyle = 'rgba(179,136,255,0.92)';
-    ctx.beginPath();
-    ctx.arc(0, -r * 0.2, r, Math.PI, 0);
-    ctx.lineTo(r, r * 0.7);
-    for (let i = 0; i < 4; i++) {
-      const w = r / 2;
-      const x0 = r - i * (2 * r) / 4;
-      ctx.quadraticCurveTo(x0 - w / 2, r * (i % 2 ? 0.35 : 1.05), x0 - w, r * 0.7);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#5b3d8f';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = '#2b1d3d';
-    ctx.beginPath();
-    ctx.arc(-r * 0.35, -r * 0.25, 2.6, 0, Math.PI * 2);
-    ctx.arc(r * 0.35, -r * 0.25, 2.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    const s = r * 2.6;
+    ctx.drawImage(ghostArt(), x - s / 2, y - s / 2 + bob, s, s);
   }
 
   function button(label, b, color) {
@@ -992,8 +1138,11 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   window.addEventListener('blur', onBlur);
   window.addEventListener('resize', setScale);
   // тап по AR-экрану запускает видео (жест - важно для iOS)
-  const onArPointer = () => {
-    if (hunt.mode === 'ar') playArVideo();
+  const onArPointer = (e) => {
+    if (hunt.mode === 'ar') {
+      playArVideo();
+      tapAr(e);
+    }
   };
   if (container) container.addEventListener('pointerdown', onArPointer);
 

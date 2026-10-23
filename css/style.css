@@ -289,6 +289,34 @@ body {
   z-index: 40;
 }
 
+.ar-stage .ar-hud {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.ar-stage .ar-hud__top,
+.ar-stage .ar-hud__msg {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(20, 14, 40, 0.72);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  text-align: center;
+}
+
+.ar-stage .ar-hud__msg {
+  color: #ffe066;
+  font-size: 15px;
+}
+
 .ar-stage .ar-tap {
   position: absolute;
   left: 50%;
