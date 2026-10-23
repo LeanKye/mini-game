@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 10) throw new Error(`Лобби: ожидалось 10 уровней, got ${levelCards}`);
+    if (levelCards !== 11) throw new Error(`Лобби: ожидалось 11 уровней, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
-    if (lockedCards !== 9) throw new Error('Лобби: кроме последней игры, все уровни должны быть заблокированы, получили ' + lockedCards);
-    results.push('✓ Лобби: 10 уровней, открыт только последний');
+    if (lockedCards !== 10) throw new Error('Лобби: кроме последней игры, все уровни должны быть заблокированы, получили ' + lockedCards);
+    results.push('✓ Лобби: 11 уровней, открыт только последний');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -97,7 +97,7 @@ async function main() {
     const lockHintText = await page.locator('#lobby-hint').textContent().catch(() => '');
     if (!/заблокировано/.test(lockHintText || '')) throw new Error('Лобби: закрытая игра должна показывать «Пока что заблокировано»');
     results.push('✓ Закрытая игра: «Пока что заблокировано», запуска нет');
-    await page.evaluate(() => window.__secureOsTest.goTo(9));
+    await page.evaluate(() => window.__secureOsTest.goTo(10));
     await page.waitForTimeout(450);
     await page.click('.level-card.is-active');
     await page.waitForSelector('#game-intro:not(.hidden)');
@@ -562,21 +562,6 @@ async function main() {
     if (!arStory) throw new Error('AR: после финала экран награды пуст');
     results.push('✓ Уровень 10 (AR): финал «Спасибо» -> награда');
 
-    // Опросник вместо истории: проходим все вопросы и проверяем результат
-    if (!(await page.locator('#reward-story .quiz').count())) throw new Error('Опросник не отрисовался');
-    await page.click('#reward-story .quiz__start');
-    for (let i = 0; i < 12; i++) {
-      if (await page.locator('#reward-story .quiz__score').count()) break;
-      const opt = page.locator('#reward-story .quiz__option:not([disabled])').first();
-      if (!(await opt.count())) break;
-      await opt.click();
-      await page.waitForTimeout(450);
-    }
-    await page.waitForSelector('#reward-story .quiz__score', { timeout: 6000 });
-    const quizScore = await page.locator('#reward-story .quiz__score').textContent();
-    if (!quizScore.includes('%')) throw new Error('Опросник: нет результата в процентах');
-    results.push('✓ Уровень 10: опросник «Как хорошо ты меня знаешь?» проходится, результат ' + quizScore.trim());
-
     const layout = await page.evaluate(() => ({
       scrollW: document.documentElement.scrollWidth,
       innerW: window.innerWidth,
@@ -586,6 +571,42 @@ async function main() {
       throw new Error('Вёрстка награды выходит за экран: ' + JSON.stringify(layout));
     }
     results.push('✓ Уровень 10: экран награды не выходит за пределы экрана');
+
+    // Уровень 11: опросник
+    await page.evaluate(() => window.__secureOsTest.startLevel('level11', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.waitForTimeout(150);
+    const qPhase = await page.evaluate(() => window.__secureOsTest.quiz().phase());
+    if (qPhase !== 'intro') throw new Error('Опрос: старт должен быть с интро, а не ' + qPhase);
+    if ((await page.evaluate(() => window.__secureOsTest.quiz().total())) !== 10) {
+      throw new Error('Опрос: ожидалось 10 вопросов');
+    }
+    if (await page.locator('#btn-skip:not(.hidden)').count()) {
+      throw new Error('Опрос: кнопки «Пропустить» быть не должно');
+    }
+    await page.evaluate(() => {
+      const q = window.__secureOsTest.quiz();
+      q.start();
+      q.answer(null);
+    });
+    await page.waitForTimeout(320);
+    if ((await page.evaluate(() => window.__secureOsTest.quiz().index())) !== 2) {
+      throw new Error('Опрос: ответ на вопрос не перевёл к следующему');
+    }
+    await page.evaluate(() => window.__secureOsTest.quiz().answerAll([2, 5]));
+    await page.waitForFunction(() => window.__secureOsTest.quiz().phase() === 'result', null, { timeout: 3000 });
+    const qPct = await page.evaluate(() => window.__secureOsTest.quiz().percent());
+    if (qPct !== 80) throw new Error('Опрос: ожидалось 80%, получили ' + qPct);
+    await page.evaluate(() => window.__secureOsTest.quiz().openReview());
+    await page.waitForFunction(() => window.__secureOsTest.quiz().phase() === 'review', null, { timeout: 3000 });
+    await page.evaluate(() => window.__secureOsTest.quiz().finish());
+    await page.waitForSelector('#screen-reward:not(.hidden)', { timeout: 8000 });
+    const qStory = await page.evaluate(
+      () => document.querySelector('#reward-story')?.textContent?.trim() || ''
+    );
+    if (!qStory) throw new Error('Опрос: после финала экран награды пуст');
+    results.push('✓ Уровень 11 (опрос): 10 вопросов, ответы, результат 80%, разбор ошибок и награда');
+
 
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
