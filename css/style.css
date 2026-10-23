@@ -279,14 +279,17 @@ body {
 .ar-stage.is-full {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
   max-width: none;
   aspect-ratio: auto;
   border: 0;
   border-radius: 0;
   background: transparent;
   z-index: 40;
+}
+
+/* во время AR страницу не прокручиваем: иначе после выхода остаётся сдвиг по горизонтали */
+body.ar-active {
+  overflow: hidden;
 }
 
 .ar-stage .ar-hud {

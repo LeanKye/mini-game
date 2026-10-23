@@ -452,6 +452,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     if (!container) return;
     container.classList.remove('hidden');
     container.classList.add('is-full');
+    document.body.classList.add('ar-active');
     canvas.classList.add('hidden');
     if (stage) stage.classList.add('hidden');
     const s = document.createElement('a-scene');
@@ -513,11 +514,13 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     if (container) {
       container.classList.add('hidden');
       container.classList.remove('is-full');
-      const tap = container.querySelector('.ar-tap');
-      if (tap) tap.remove();
+      // убираем всё, что могла оставить A-Frame, чтобы не ломать вёрстку дальше
+      while (container.firstChild) container.removeChild(container.firstChild);
     }
+    document.body.classList.remove('ar-active');
     canvas.classList.remove('hidden');
     if (stage) stage.classList.remove('hidden');
+    window.scrollTo(0, 0);
   }
 
   function start2D() {
@@ -1126,6 +1129,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     finished = true;
     stopPhotoCam();
     cleanupScene();
+    window.scrollTo(0, 0);
     setTimeout(() => {
       if (onWin) onWin();
     }, 300);

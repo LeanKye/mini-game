@@ -577,6 +577,16 @@ async function main() {
     if (!quizScore.includes('%')) throw new Error('Опросник: нет результата в процентах');
     results.push('✓ Уровень 10: опросник «Как хорошо ты меня знаешь?» проходится, результат ' + quizScore.trim());
 
+    const layout = await page.evaluate(() => ({
+      scrollW: document.documentElement.scrollWidth,
+      innerW: window.innerWidth,
+      scrollX: window.scrollX,
+    }));
+    if (layout.scrollW > layout.innerW + 2 || layout.scrollX !== 0) {
+      throw new Error('Вёрстка награды выходит за экран: ' + JSON.stringify(layout));
+    }
+    results.push('✓ Уровень 10: экран награды не выходит за пределы экрана');
+
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;
