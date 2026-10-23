@@ -562,6 +562,21 @@ async function main() {
     if (!arStory) throw new Error('AR: после финала экран награды пуст');
     results.push('✓ Уровень 10 (AR): финал «Спасибо» -> награда');
 
+    // Опросник вместо истории: проходим все вопросы и проверяем результат
+    if (!(await page.locator('#reward-story .quiz').count())) throw new Error('Опросник не отрисовался');
+    await page.click('#reward-story .quiz__start');
+    for (let i = 0; i < 12; i++) {
+      if (await page.locator('#reward-story .quiz__score').count()) break;
+      const opt = page.locator('#reward-story .quiz__option:not([disabled])').first();
+      if (!(await opt.count())) break;
+      await opt.click();
+      await page.waitForTimeout(450);
+    }
+    await page.waitForSelector('#reward-story .quiz__score', { timeout: 6000 });
+    const quizScore = await page.locator('#reward-story .quiz__score').textContent();
+    if (!quizScore.includes('%')) throw new Error('Опросник: нет результата в процентах');
+    results.push('✓ Уровень 10: опросник «Как хорошо ты меня знаешь?» проходится, результат ' + quizScore.trim());
+
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
     process.exitCode = 1;

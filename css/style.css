@@ -616,6 +616,51 @@ body {
 
 .reward__actions .btn--ghost { margin-top: 0; }
 
+/* ── Опросник «Как хорошо ты меня знаешь?» ─────────────── */
+.quiz { text-align: left; }
+.quiz__intro { margin: 0 0 16px; font-weight: 600; }
+.quiz__start { width: 100%; margin-top: 4px; }
+.quiz__meta {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.quiz__q { margin: 0 0 14px; font-size: 1.05rem; font-weight: 800; }
+.quiz__options { display: grid; gap: 10px; }
+.quiz__option {
+  font: inherit;
+  text-align: left;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 2px solid rgba(140, 107, 214, 0.45);
+  background: rgba(255, 255, 255, 0.92);
+  color: #2a1c4d;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+.quiz__option:hover { border-color: #8c6bd6; }
+.quiz__option:active { transform: scale(0.99); }
+.quiz__option.is-picked { border-color: #8c6bd6; background: #e9e0ff; }
+.quiz__option:disabled { cursor: default; opacity: 0.8; }
+.quiz__score { margin: 0 0 8px; font-size: 1.35rem; font-weight: 800; }
+.quiz__verdict { margin: 0 0 18px; font-weight: 600; }
+.quiz__review-title { margin: 0 0 10px; font-weight: 800; }
+.quiz__wrong {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 157, 192, 0.16);
+}
+.quiz__wrong-q { margin: 0 0 6px; font-weight: 800; }
+.quiz__wrong-a { margin: 0; color: #b8436b; font-weight: 700; }
+.quiz__wrong-ok { margin: 3px 0 0; color: #1f7a54; font-weight: 700; }
+.quiz__wrong-note { margin: 6px 0 0; font-size: 0.9rem; opacity: 0.8; }
+.quiz__outro { margin: 18px 0 0; font-weight: 600; }
+
 /* ── Паззл с кодом (пятнашки) ───────────────────────────── */
 .reward__puzzle { margin: 6px 0 4px; }
 

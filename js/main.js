@@ -546,6 +546,12 @@ async function revealReward(opts = {}) {
     }
 
     el.rewardTitle.textContent = reward.title || CONFIG.winTitle;
+    if (reward.quiz) {
+      el.rewardStory.innerHTML = '';
+      el.bonus.textContent = reward.bonus || '';
+      renderQuiz(el.rewardStory, reward.quiz);
+      return;
+    }
     const finish = () => {
       if (reward.code) {
         if (usePuzzle) showPuzzle(reward.code);
@@ -573,6 +579,129 @@ async function revealReward(opts = {}) {
     el.bonus.textContent = CONFIG.bonusFallback;
     console.warn('[rewards]', err);
   }
+}
+
+function renderQuiz(container, quiz) {
+  container.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'quiz';
+  container.appendChild(wrap);
+  const questions = quiz.questions || [];
+  const answers = new Array(questions.length).fill(null);
+  let idx = 0;
+
+  function showQuestion() {
+    wrap.innerHTML = '';
+    const q = questions[idx];
+    const meta = document.createElement('p');
+    meta.className = 'quiz__meta';
+    meta.textContent = `Вопрос ${idx + 1} из ${questions.length}`;
+    const qt = document.createElement('p');
+    qt.className = 'quiz__q';
+    qt.textContent = q.q;
+    wrap.appendChild(meta);
+    wrap.appendChild(qt);
+    const opts = document.createElement('div');
+    opts.className = 'quiz__options';
+    (q.options || []).forEach((opt, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'quiz__option';
+      b.textContent = opt;
+      b.addEventListener('click', () => {
+        if (answers[idx] !== null) return;
+        answers[idx] = i;
+        b.classList.add('is-picked');
+        opts.querySelectorAll('button').forEach((x) => {
+          x.disabled = true;
+        });
+        setTimeout(() => {
+          idx += 1;
+          if (idx < questions.length) showQuestion();
+          else showResult();
+        }, 350);
+      });
+      opts.appendChild(b);
+    });
+    wrap.appendChild(opts);
+  }
+
+  function showResult() {
+    wrap.innerHTML = '';
+    let correct = 0;
+    const wrong = [];
+    questions.forEach((q, i) => {
+      if (answers[i] === q.answer) correct += 1;
+      else wrong.push({ q, chosen: answers[i] });
+    });
+    const pct = questions.length ? Math.round((correct / questions.length) * 100) : 0;
+
+    const head = document.createElement('p');
+    head.className = 'quiz__score';
+    head.textContent = `Результат: ${pct}% · правильных ${correct} из ${questions.length}`;
+    wrap.appendChild(head);
+
+    const verdict = document.createElement('p');
+    verdict.className = 'quiz__verdict';
+    if (pct === 100) verdict.textContent = 'Идеально! Ты читала очень внимательно.';
+    else if (pct >= 70) verdict.textContent = 'Хорошо! Пара моментов всё же проскочила.';
+    else if (pct >= 40) verdict.textContent = 'Неплохо, но истории читались вполглаза :)';
+    else verdict.textContent = 'Похоже, истории листались по диагонали, хаха.';
+    wrap.appendChild(verdict);
+
+    if (wrong.length) {
+      const t = document.createElement('p');
+      t.className = 'quiz__review-title';
+      t.textContent = 'Где ошиблась:';
+      wrap.appendChild(t);
+      wrong.forEach((w) => {
+        const box = document.createElement('div');
+        box.className = 'quiz__wrong';
+        const qq = document.createElement('p');
+        qq.className = 'quiz__wrong-q';
+        qq.textContent = w.q.q;
+        const chosen = document.createElement('p');
+        chosen.className = 'quiz__wrong-a';
+        chosen.textContent =
+          w.chosen === null ? 'Ты не ответила' : `Твой ответ: ${w.q.options[w.chosen]}`;
+        const ok = document.createElement('p');
+        ok.className = 'quiz__wrong-ok';
+        ok.textContent = `Правильно: ${w.q.options[w.q.answer]}`;
+        box.appendChild(qq);
+        box.appendChild(chosen);
+        box.appendChild(ok);
+        if (w.q.note) {
+          const n = document.createElement('p');
+          n.className = 'quiz__wrong-note';
+          n.textContent = w.q.note;
+          box.appendChild(n);
+        }
+        wrap.appendChild(box);
+      });
+    }
+
+    if (quiz.outro) {
+      const o = document.createElement('p');
+      o.className = 'quiz__outro';
+      o.textContent = quiz.outro;
+      wrap.appendChild(o);
+    }
+  }
+
+  if (quiz.intro) {
+    const intro = document.createElement('p');
+    intro.className = 'quiz__intro';
+    intro.textContent = quiz.intro;
+    wrap.appendChild(intro);
+    const start = document.createElement('button');
+    start.type = 'button';
+    start.className = 'btn btn--primary quiz__start';
+    start.textContent = 'Начать';
+    start.addEventListener('click', showQuestion);
+    wrap.appendChild(start);
+    return;
+  }
+  showQuestion();
 }
 
 function typeStory(container, paragraphs) {
