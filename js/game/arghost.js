@@ -98,7 +98,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   let outroBusy = false;
 
   const scan = { holding: false, progress: 0, grantedT: 0 };
-  const photo = { state: 'idle', stream: null, video: null, countdown: 0, flash: 0, failed: false };
+  const photo = { state: 'idle', stream: null, video: null, countdown: 0, failed: false };
   const hunt = { mode: 'idle', wave: 0, zapped: 0, ghosts: [], spawnT: 0, score: 0 };
   let selfie = null; // последний кадр 3:4
   let card = null;
@@ -216,7 +216,6 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
         }
       }
       photo.state = 'shot';
-      photo.flash = 1;
       return frameFromVideo(v);
     } catch (e) {
       return null;
@@ -643,13 +642,13 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   function spawnArGhost() {
     const marker = scene && scene._arMarker;
     if (!marker) return;
-    const x = (Math.random() - 0.5) * 1.6;
-    const y = 0.35 + Math.random() * 0.9;
-    const z = (Math.random() - 0.5) * 1.2;
+    const x = (Math.random() - 0.5) * 1.8;
+    const y = 0.5 + Math.random() * 0.8;
+    const z = (Math.random() - 0.5) * 1.0;
     const g = document.createElement('a-plane');
     g.setAttribute('class', 'ghost');
-    g.setAttribute('width', '0.55');
-    g.setAttribute('height', '0.55');
+    g.setAttribute('width', '1.0');
+    g.setAttribute('height', '1.0');
     g.setAttribute('position', `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`);
     g.setAttribute('material', { src: ghostSrc(), transparent: true, alphaTest: 0.1, side: 'double' });
     g.setAttribute('animation', {
@@ -724,7 +723,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     hunt.ghosts.push({
       x: m + Math.random() * (VIEW.w - 2 * m),
       y: 120 + Math.random() * (VIEW.h - 260),
-      r: 30,
+      r: 42,
       t: Math.random() * 6,
       life: 2.8,
     });
@@ -735,7 +734,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     let bestD = 1e9;
     hunt.ghosts.forEach((g, i) => {
       const d = Math.hypot(g.x - q.x, g.y - q.y);
-      if (d < g.r + 14 && d < bestD) {
+      if (d < g.r + 28 && d < bestD) {
         bestD = d;
         best = i;
       }
@@ -749,6 +748,15 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
 
   function stepHunt(dt) {
     if (hunt.mode === 'ar' && scene && scene._arMarker) {
+      // billboard: призраки всегда лицом к камере (иначе на метке видны только их «головы»)
+      const THREE = window.AFRAME && window.AFRAME.THREE;
+      if (THREE && scene.camera) {
+        const camPos = new THREE.Vector3();
+        scene.camera.getWorldPosition(camPos);
+        scene._arMarker.querySelectorAll('.ghost').forEach((el) => {
+          if (el.object3D) el.object3D.lookAt(camPos);
+        });
+      }
       const quota = waveQuota(hunt.wave);
       if (hunt.zapped < quota) {
         hunt.spawnT -= dt;
@@ -1014,10 +1022,6 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       ctx.font = "800 15px 'Nunito', sans-serif";
       ctx.fillText(toast, VIEW.w / 2, 116);
     }
-    if (photo.flash > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, photo.flash)})`;
-      ctx.fillRect(0, 0, VIEW.w, VIEW.h);
-    }
   }
 
   // ── Ввод ────────────────────────────────────────────────
@@ -1057,7 +1061,6 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   function step(dt) {
     t += dt;
     if (toastT > 0) toastT -= dt;
-    if (photo.flash > 0) photo.flash -= dt;
     if (phase === 'scan') stepScan(dt);
     else if (phase === 'granted') {
       scan.grantedT -= dt;
