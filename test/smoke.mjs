@@ -76,10 +76,10 @@ async function main() {
     results.push('✓ Сайт открывается сразу на лобби');
 
     const levelCards = await page.locator('.level-card').count();
-    if (levelCards !== 9) throw new Error(`Лобби: ожидалось 9 уровней, got ${levelCards}`);
+    if (levelCards !== 10) throw new Error(`Лобби: ожидалось 10 уровней, got ${levelCards}`);
     const lockedCards = await page.locator('.level-card--locked').count();
-    if (lockedCards !== 8) throw new Error('Лобби: кроме последней игры, все уровни должны быть заблокированы, получили ' + lockedCards);
-    results.push('✓ Лобби: 9 уровней, открыт только последний');
+    if (lockedCards !== 9) throw new Error('Лобби: кроме последней игры, все уровни должны быть заблокированы, получили ' + lockedCards);
+    results.push('✓ Лобби: 10 уровней, открыт только последний');
 
     await page.evaluate(() => window.__secureOsTest.goTo(1));
     await page.waitForTimeout(450);
@@ -97,7 +97,7 @@ async function main() {
     const lockHintText = await page.locator('#lobby-hint').textContent().catch(() => '');
     if (!/заблокировано/.test(lockHintText || '')) throw new Error('Лобби: закрытая игра должна показывать «Пока что заблокировано»');
     results.push('✓ Закрытая игра: «Пока что заблокировано», запуска нет');
-    await page.evaluate(() => window.__secureOsTest.goTo(8));
+    await page.evaluate(() => window.__secureOsTest.goTo(9));
     await page.waitForTimeout(450);
     await page.click('.level-card.is-active');
     await page.waitForSelector('#game-intro:not(.hidden)');
@@ -530,6 +530,38 @@ async function main() {
     );
     if (!bStory) throw new Error('Арканоид: после победы экран награды пуст');
     results.push('✓ Уровень 9 (арканоид): три этапа проходятся, победа ведёт на награду');
+
+    await page.evaluate(() => window.__secureOsTest.startLevel('level10', false));
+    await page.waitForSelector('#screen-game:not(.hidden)');
+    await page.waitForTimeout(200);
+    const arPhase0 = await page.evaluate(() => window.__secureOsTest.arghost().phase());
+    if (arPhase0 !== 'scan') throw new Error('AR: старт должен быть на фазе сканирования, а не ' + arPhase0);
+    if (await page.locator('#btn-skip:not(.hidden)').count()) {
+      throw new Error('AR: кнопки «Пропустить» быть не должно');
+    }
+    results.push('✓ Уровень 10 (AR): старт с фазы сканирования отпечатка, без пропуска');
+
+    // без камеры/CDN модуль уходит в 2D-фолбэк
+    await page.evaluate(() => window.__secureOsTest.arghost().skipScan());
+    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'photo', null, { timeout: 3000 });
+    results.push('✓ Уровень 10: скан ведёт к шагу «фото в удостоверение»');
+
+    await page.evaluate(() => window.__secureOsTest.arghost().skipPhoto());
+    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'hunt', null, { timeout: 3000 });
+    await page.waitForFunction(() => window.__secureOsTest.arghost().huntMode() === '2d', null, { timeout: 12000 });
+    results.push('✓ Уровень 10: без AR-библиотек включается 2D-фолбэк охоты');
+
+    await page.evaluate(() => window.__secureOsTest.arghost().completeHunt());
+    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'final', null, { timeout: 5000 });
+    const arSend = await page.evaluate(() => window.__secureOsTest.arghost().sendState());
+    if (arSend !== 'off') throw new Error('AR: без конфига Telegram отправка должна быть отключена, а не ' + arSend);
+    await page.evaluate(() => window.__secureOsTest.arghost().finish());
+    await page.waitForSelector('#screen-reward:not(.hidden)', { timeout: 8000 });
+    const arStory = await page.evaluate(
+      () => document.querySelector('#reward-story')?.textContent?.trim() || ''
+    );
+    if (!arStory) throw new Error('AR: после победы экран награды пуст');
+    results.push('✓ Уровень 10 (AR): волны -> удостоверение -> награда');
 
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);

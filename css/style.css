@@ -251,6 +251,23 @@ body {
   touch-action: none;
 }
 
+.ar-stage {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+  aspect-ratio: 3 / 4;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: #000;
+}
+
+.ar-stage > a-scene {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .controls {
   width: 100%;
   max-width: 620px;

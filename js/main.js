@@ -8,6 +8,7 @@ import { createBrawl } from './game/brawl.js';
 import { createPour } from './game/pour.js';
 import { createSokoban } from './game/sokoban.js';
 import { createBreakout } from './game/breakout.js';
+import { createArGhost } from './game/arghost.js';
 import { createScroll } from './scroll.js';
 import { getReward } from './rewards.js';
 
@@ -35,6 +36,8 @@ const el = {
   introText: document.getElementById('intro-text'),
   introBtn: document.getElementById('btn-intro'),
   canvas: document.getElementById('game-canvas'),
+  arStage: document.getElementById('ar-stage'),
+  stageEl: document.querySelector('.stage'),
   controlsBox: document.getElementById('controls'),
   controls: {
     left: document.getElementById('pad-left'),
@@ -104,6 +107,8 @@ function startGame(levelId = currentLevelId, withIntro = true) {
   const isPlatformer = kind === 'platformer';
   const usesPads = isPlatformer || kind === 'breakout';
   el.canvas.style.aspectRatio = '';
+  if (el.stageEl) el.stageEl.classList.remove('hidden');
+  if (el.arStage) el.arStage.classList.add('hidden');
   if (el.hudStars) el.hudStars.classList.toggle('hidden', !isPlatformer);
   if (el.controlsBox) el.controlsBox.classList.toggle('hidden', !usesPads);
   if (el.controls.jump) el.controls.jump.classList.toggle('hidden', !isPlatformer);
@@ -146,6 +151,15 @@ function startGame(levelId = currentLevelId, withIntro = true) {
       controls: el.controls,
       onHint: showGameHint,
       onWin: handleWin,
+    });
+  } else if (kind === 'arghost') {
+    updateTimer(0);
+    game = createArGhost(el.canvas, {
+      container: el.arStage,
+      stage: el.stageEl,
+      onHint: showGameHint,
+      onWin: handleWin,
+      telegram: CONFIG.telegram,
     });
   } else if (kind === 'brawl') {
     updateTimer(0);
@@ -848,6 +862,7 @@ function init() {
       pour: () => (game && game.test ? game.test : null),
       sokoban: () => (game && game.test ? game.test : null),
       breakout: () => (game && game.test ? game.test : null),
+      arghost: () => (game && game.test ? game.test : null),
       solvePuzzle: () => solvePuzzle(),
       puzzle: () => (puzzle ? { digits: puzzle.digits.length, solved: puzzle.solved } : null),
       payload: (id) => getReward(id || CONFIG.gameId),
