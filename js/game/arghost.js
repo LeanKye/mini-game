@@ -174,20 +174,26 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   // Позже SHOW_CARD = true вернёт экран «удостоверение» и показ фото.
   function frameFromVideo() {
     const v = photo.video;
-    const w = 480;
+    // кадр 4:3 (вырезаем центр исходного видео, без искажений)
+    const w = 640;
     const h = 480;
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
     const g = c.getContext('2d');
     if (v && v.videoWidth) {
-      const s = Math.min(v.videoWidth, v.videoHeight);
-      const sx = (v.videoWidth - s) / 2;
-      const sy = (v.videoHeight - s) / 2;
+      const vw = v.videoWidth;
+      const vh = v.videoHeight;
+      let sw = vw;
+      let sh = vh;
+      if (vw / vh > 4 / 3) sw = (vh * 4) / 3;
+      else sh = (vw * 3) / 4;
+      const sx = (vw - sw) / 2;
+      const sy = (vh - sh) / 2;
       g.save();
       g.translate(w, 0);
       g.scale(-1, 1);
-      g.drawImage(v, sx, sy, s, s, 0, 0, w, h);
+      g.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
       g.restore();
     }
     return c;
@@ -320,8 +326,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     g.fillText('ОТДЕЛ: ОХОТА НА ДУХОВ   ·   КОД AR-10', 34, 74);
     const px = 34;
     const py = 92;
-    const pw = 280;
-    const ph = 272;
+    const pw = 300;
+    const ph = 225;
     g.save();
     rr(g, px, py, pw, ph, 12);
     g.clip();

@@ -260,7 +260,7 @@ body {
   overflow: hidden;
   box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.7);
-  background: #000;
+  background: transparent;
   overscroll-behavior: contain;
   touch-action: none;
 }
@@ -285,6 +285,7 @@ body {
   aspect-ratio: auto;
   border: 0;
   border-radius: 0;
+  background: transparent;
   z-index: 40;
 }
 
