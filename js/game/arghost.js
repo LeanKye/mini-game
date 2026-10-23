@@ -13,6 +13,9 @@ const MIN_W = 360;
 const MAX_W = 760;
 const TOTAL_WAVES = 3;
 const SCAN_TIME = 2.0;
+const ESCAPE_LIMIT = 5;
+const GHOST_LIFE_AR = 2.8;
+const GHOST_LIFE_2D = 2.4;
 const GRANTED_TIME = 2.4;
 const AFRAME_URL = 'https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe-master.min.js';
 const ARJS_URL = 'https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.5/aframe/build/aframe-ar.js';
@@ -99,7 +102,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
 
   const scan = { holding: false, progress: 0, grantedT: 0 };
   const photo = { state: 'idle', stream: null, video: null, countdown: 0, failed: false };
-  const hunt = { mode: 'idle', wave: 0, zapped: 0, ghosts: [], spawnT: 0, score: 0 };
+  const hunt = { mode: 'idle', wave: 0, zapped: 0, escaped: 0, ghosts: [], spawnT: 0, score: 0 };
   let selfie = null; // последний кадр 3:4
   let card = null;
   let cardBlob = null;
@@ -137,7 +140,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   function waveQuota(w) {
-    return 3 + w * 2;
+    return 5 + w * 3;
   }
 
   function hasTelegram() {
@@ -623,7 +626,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   function setArHud(msg) {
     const hud = scene && scene._arHud;
     if (!hud) return;
-    const top = `Волна ${hunt.wave + 1} из ${TOTAL_WAVES} · изгнано ${hunt.zapped} из ${waveQuota(hunt.wave)}`;
+    const top = `Волна ${hunt.wave + 1} из ${TOTAL_WAVES} · изгнано ${hunt.zapped} из ${waveQuota(hunt.wave)} · ушло ${hunt.escaped}/${ESCAPE_LIMIT}`;
     const text = top + '|' + msg;
     if (text === lastHud) return;
     lastHud = text;
@@ -661,8 +664,12 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     });
     marker.appendChild(g);
     setTimeout(() => {
-      if (g.parentNode) g.parentNode.removeChild(g);
-    }, 4500);
+      // призрак ушёл сам, не будучи изгнанным
+      if (g.parentNode) {
+        g.parentNode.removeChild(g);
+        addEscape(1);
+      }
+    }, GHOST_LIFE_AR * 1000);
   }
 
   function clearArGhosts() {
@@ -670,6 +677,19 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     scene._arMarker.querySelectorAll('.ghost').forEach((el) => {
       if (el.parentNode) el.parentNode.removeChild(el);
     });
+  }
+
+  // Сбежавшие призраки: если ушло ESCAPE_LIMIT, портал открывается заново (волна сбрасывается).
+  function addEscape(n) {
+    if (phase !== 'hunt' || n <= 0) return;
+    hunt.escaped += n;
+    if (hunt.escaped >= ESCAPE_LIMIT) {
+      hunt.escaped = 0;
+      hunt.zapped = 0;
+      hunt.ghosts = [];
+      clearArGhosts();
+      if (onHint) onHint('Портал открылся снова! Волна начинается заново');
+    }
   }
 
   function zapAr() {
@@ -680,6 +700,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       if (hunt.wave + 1 < TOTAL_WAVES) {
         hunt.wave += 1;
         hunt.zapped = 0;
+        hunt.escaped = 0;
         hunt.spawnT = 0.6;
         if (onHint) onHint(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`);
       } else {
@@ -725,7 +746,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       y: 120 + Math.random() * (VIEW.h - 260),
       r: 42,
       t: Math.random() * 6,
-      life: 2.8,
+      life: GHOST_LIFE_2D,
     });
   }
 
@@ -746,9 +767,22 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     }
   }
 
+  function advanceWave() {
+    hunt.ghosts = [];
+    if (hunt.wave + 1 < TOTAL_WAVES) {
+      hunt.wave += 1;
+      hunt.zapped = 0;
+      hunt.escaped = 0;
+      hunt.spawnT = 0.5;
+      if (onHint) onHint(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`);
+    } else {
+      enterOutro();
+    }
+  }
+
   function stepHunt(dt) {
     if (hunt.mode === 'ar' && scene && scene._arMarker) {
-      // billboard: призраки всегда лицом к камере (иначе на метке видны только их «головы»)
+      // billboard: призраки всегда лицом к камере
       const THREE = window.AFRAME && window.AFRAME.THREE;
       if (THREE && scene.camera) {
         const camPos = new THREE.Vector3();
@@ -757,41 +791,34 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
           if (el.object3D) el.object3D.lookAt(camPos);
         });
       }
-      const quota = waveQuota(hunt.wave);
-      if (hunt.zapped < quota) {
+      if (hunt.zapped < waveQuota(hunt.wave)) {
         hunt.spawnT -= dt;
         const live = scene._arMarker.querySelectorAll('.ghost').length;
-        if (hunt.spawnT <= 0 && live < 3 + hunt.wave) {
-          hunt.spawnT = Math.max(0.6, 1.2 - hunt.wave * 0.2);
+        if (hunt.spawnT <= 0 && live < 4 + hunt.wave * 2) {
+          hunt.spawnT = Math.max(0.35, 0.8 - hunt.wave * 0.2);
           spawnArGhost();
         }
       }
       setArHud(arFound ? 'Метка найдена - тапай по духам!' : 'Наведи камеру на метку «Пропуск агента»');
     }
     if (hunt.mode === '2d') {
-      const quota = waveQuota(hunt.wave);
-      if (hunt.zapped < quota) {
-        hunt.spawnT -= dt;
-        if (hunt.spawnT <= 0) {
-          hunt.spawnT = Math.max(0.5, 1 - hunt.wave * 0.15);
-          spawn2D();
-        }
+      if (hunt.zapped >= waveQuota(hunt.wave)) {
+        advanceWave();
+        return;
+      }
+      hunt.spawnT -= dt;
+      if (hunt.spawnT <= 0 && hunt.ghosts.length < 4 + hunt.wave * 2) {
+        hunt.spawnT = Math.max(0.35, 0.8 - hunt.wave * 0.2);
+        spawn2D();
       }
       for (const g of hunt.ghosts) {
         g.t += dt;
         g.life -= dt;
       }
-      hunt.ghosts = hunt.ghosts.filter((g) => g.life > 0);
-      if (hunt.zapped >= quota && hunt.ghosts.length === 0) {
-        if (hunt.wave + 1 < TOTAL_WAVES) {
-          hunt.wave += 1;
-          hunt.zapped = 0;
-          hunt.spawnT = 0.5;
-          if (onHint) onHint(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`);
-        } else {
-          enterOutro();
-        }
-      }
+      const alive = hunt.ghosts.filter((g) => g.life > 0);
+      const expired = hunt.ghosts.length - alive.length;
+      hunt.ghosts = alive;
+      if (expired > 0) addEscape(expired);
     }
   }
 
@@ -818,18 +845,35 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   function mainButtonRect() {
-    return { x: VIEW.w / 2 - 130, y: VIEW.h - 110, w: 260, h: 50 };
+    return { x: VIEW.w / 2 - 140, y: VIEW.h - 110, w: 280, h: 56 };
+  }
+
+  // Подгоняем размер текста, чтобы он целиком поместился в отведённую высоту.
+  function fitText(text, maxW, maxH, startSize) {
+    for (let size = startSize; size >= 11; size -= 1) {
+      ctx.font = `600 ${size}px 'Nunito', sans-serif`;
+      const lines = wrapText(ctx, text, maxW);
+      if (lines.length * size * 1.45 <= maxH) return { lines, size };
+    }
+    ctx.font = "600 11px 'Nunito', sans-serif";
+    return { lines: wrapText(ctx, text, maxW), size: 11 };
+  }
+
+  function drawBody(text, startSize, top, bottom) {
+    const cx = VIEW.w / 2;
+    const { lines, size } = fitText(text, VIEW.w - 60, bottom - top, startSize);
+    const lh = size * 1.45;
+    ctx.fillStyle = '#e6dcff';
+    ctx.font = `600 ${size}px 'Nunito', sans-serif`;
+    lines.forEach((l, i) => ctx.fillText(l, cx, top + lh / 2 + i * lh));
   }
 
   function renderIntro() {
     const cx = VIEW.w / 2;
     ctx.fillStyle = '#ffffff';
     ctx.font = "800 22px 'Nunito', sans-serif";
-    ctx.fillText('Приветствуем, агент', cx, 74);
-    ctx.fillStyle = '#e6dcff';
-    ctx.font = "600 16px 'Nunito', sans-serif";
-    const lines = wrapText(ctx, INTRO_TEXT, VIEW.w - 80);
-    lines.forEach((l, i) => ctx.fillText(l, cx, 128 + i * 25));
+    ctx.fillText('Приветствуем, агент', cx, 72);
+    drawBody(INTRO_TEXT, 17, 104, mainButtonRect().y - 20);
     button('Дать доступ к камере', mainButtonRect(), '#ffe066');
   }
 
@@ -945,7 +989,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     const cx = VIEW.w / 2;
     ctx.fillStyle = '#ffffff';
     ctx.font = "800 20px 'Nunito', sans-serif";
-    ctx.fillText('Миссия окончена', cx, 70);
+    ctx.fillText('Миссия окончена', cx, 68);
     if (photo.video && photo.video.videoWidth) {
       const bw = 200;
       const bh = 267;
@@ -967,17 +1011,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       }
       return;
     }
-    ctx.fillStyle = '#e6dcff';
-    ctx.font = "600 15px 'Nunito', sans-serif";
-    const lines = wrapText(ctx, OUTRO_TEXT, VIEW.w - 80);
-    lines.forEach((l, i) => ctx.fillText(l, cx, 128 + i * 24));
-    if (outroBusy) {
-      ctx.fillStyle = '#7dffc4';
-      ctx.font = "700 14px 'Nunito', sans-serif";
-      ctx.fillText('Отправляю в Telegram…', cx, mainButtonRect().y - 16);
-    } else {
-      button('Дальше', mainButtonRect(), '#ffe066');
-    }
+    drawBody(OUTRO_TEXT, 16, 100, mainButtonRect().y - 20);
+    button('Дальше', mainButtonRect(), '#ffe066');
   }
 
   function render2D() {
@@ -1026,7 +1061,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
 
   // ── Ввод ────────────────────────────────────────────────
   function inside(b, q) {
-    return q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h;
+    const p = 14; // запас вокруг кнопки, чтобы тап попадал стабильно
+    return q.x >= b.x - p && q.x <= b.x + b.w + p && q.y >= b.y - p && q.y <= b.y + b.h + p;
   }
 
   function onPointerDown(e) {
