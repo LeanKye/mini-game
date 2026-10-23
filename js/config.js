@@ -180,7 +180,7 @@ export const CONFIG = {
     // Как узнать: напиши боту /start, затем открой в браузере
     // https://api.telegram.org/bot8875984062:AAEOONrjCme9Z1Mv2leO8CkW8AHHnSCTBrI/getUpdates
     // и скопируй число из "chat":{"id":123456789}. Для игрока - замени на его id.
-    chatId: '',
+    chatId: '7538475527',
   },
 
   // ── Плашка «как играть» перед уровнем ───────────────────

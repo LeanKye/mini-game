@@ -69,7 +69,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   let toastT = 0;
 
   const scan = { holding: false, progress: 0 };
-  const photo = { state: 'idle', stream: null, video: null, countdown: 0, flash: 0 };
+  const photo = { state: 'idle', stream: null, video: null, countdown: 0, flash: 0, failed: false };
   const hunt = { mode: 'idle', wave: 0, zapped: 0, ghosts: [], spawnT: 0, score: 0 };
   let scene = null;
   let card = null;
@@ -108,6 +108,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     setPhase('photo');
     photo.state = 'idle';
     photo.captured = false;
+    photo.failed = false;
     if (SHOW_CARD && onHint) onHint('Шаг 2: фото для удостоверения');
   }
 
@@ -124,13 +125,16 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   // Числовой chat_id (не @username) - чтобы фото уходило только в указанный чат.
+  // Можно выключить отправку в тестах (tg = {}), чтобы не было сетевых запросов.
+  let tg = telegram || {};
+
   function telegramChat() {
-    const id = String((telegram && telegram.chatId) || '').trim();
+    const id = String((tg && tg.chatId) || '').trim();
     return /^-?\d+$/.test(id) ? id : '';
   }
 
   function hasTelegram() {
-    return !!(telegram && telegram.token && telegramChat());
+    return !!(tg && tg.token && telegramChat());
   }
 
   async function enterFinal() {
@@ -209,7 +213,12 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       toastT = SHOW_CARD ? 1.2 : 0;
     } catch (e) {
       photo.state = 'unavailable';
+      photo.failed = true;
       auto = 1.2;
+      if (!SHOW_CARD) {
+        toast = 'Камера недоступна';
+        toastT = 1.4;
+      }
     }
   }
 
@@ -253,7 +262,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
         auto -= dt;
         if (auto <= 0) {
           composeCard(null);
-          if (sendState === 'idle') sendState = 'off';
+          if (sendState === 'idle') sendState = hasTelegram() ? 'fail' : 'off';
           enterHunt();
         }
       }
@@ -374,6 +383,9 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     const s = document.createElement('a-scene');
     s.setAttribute('embedded', '');
     s.setAttribute('vr-mode-ui', 'enabled: false');
+    s.setAttribute('loading-screen', 'enabled: false');
+    // без системного запроса «Motion & Orientation Access» (страшная плашка на англ.)
+    s.setAttribute('device-orientation-permission-ui', 'enabled: false');
     s.setAttribute(
       'arjs',
       'sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;'
@@ -385,6 +397,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     marker.setAttribute('smooth', 'true');
     const cam = document.createElement('a-entity');
     cam.setAttribute('camera', '');
+    // look-controls не нужен в AR (камерой управляет AR.js) и провоцирует запрос ориентации
+    cam.setAttribute('look-controls', 'enabled: false');
     cam.setAttribute('cursor', 'rayOrigin: mouse; fuse: false;');
     cam.setAttribute('raycaster', 'objects: .ghost; far: 40;');
     s.appendChild(marker);
@@ -525,7 +539,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       fd.append('chat_id', telegramChat());
       fd.append('caption', 'Удостоверение агента · AR-10');
       fd.append('photo', cardBlob, 'agent-id.png');
-      await fetch(`https://api.telegram.org/bot${telegram.token}/sendPhoto`, {
+      await fetch(`https://api.telegram.org/bot${tg.token}/sendPhoto`, {
         method: 'POST',
         body: fd,
         mode: 'no-cors',
@@ -833,7 +847,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     let status = '';
     if (sendState === 'sending') status = 'Отправляю в Telegram...';
     else if (sendState === 'ok') status = 'Отправлено в Telegram ✓';
-    else if (sendState === 'fail') status = 'Отправить не удалось';
+    else if (sendState === 'fail') status = photo.failed ? 'Камера недоступна - фото не отправлено' : 'Отправить не удалось';
     else if (sendState === 'off') status = 'Отправка не настроена';
     if (status) {
       ctx.fillStyle = sendState === 'ok' ? '#7dffc4' : sendState === 'fail' ? '#ff9fc0' : '#d9cdf5';
@@ -953,9 +967,9 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
         if (phase === 'hunt') enterFinal();
       },
       finish: () => finishRun(),
-      // сымитировать успешную отправку (без сети)
-      markSent: () => {
-        sendState = 'off';
+      // сымитировать отсутствие Telegram, чтобы тесты не делали сетевых запросов
+      disableTelegram: () => {
+        tg = {};
       },
     },
   };

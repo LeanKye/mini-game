@@ -261,11 +261,18 @@ body {
   box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.7);
   background: #000;
+  overscroll-behavior: contain;
+  touch-action: none;
 }
 
-.ar-stage > a-scene {
+.ar-stage > a-scene,
+.ar-stage > a-scene > canvas {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
   width: 100% !important;
   height: 100% !important;
+  display: block !important;
 }
 
 .controls {

@@ -532,6 +532,7 @@ async function main() {
     results.push('✓ Уровень 9 (арканоид): три этапа проходятся, победа ведёт на награду');
 
     await page.evaluate(() => window.__secureOsTest.startLevel('level10', false));
+    await page.evaluate(() => window.__secureOsTest.arghost().disableTelegram());
     await page.waitForSelector('#screen-game:not(.hidden)');
     await page.waitForTimeout(200);
     const arPhase0 = await page.evaluate(() => window.__secureOsTest.arghost().phase());
@@ -551,10 +552,11 @@ async function main() {
     await page.waitForFunction(() => window.__secureOsTest.arghost().huntMode() === '2d', null, { timeout: 12000 });
     results.push('✓ Уровень 10: без AR-библиотек включается 2D-фолбэк охоты');
 
+    await page.evaluate(() => window.__secureOsTest.arghost().disableTelegram());
     await page.evaluate(() => window.__secureOsTest.arghost().completeHunt());
     await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'final', null, { timeout: 5000 });
     const arSend = await page.evaluate(() => window.__secureOsTest.arghost().sendState());
-    if (arSend !== 'off') throw new Error('AR: без конфига Telegram отправка должна быть отключена, а не ' + arSend);
+    if (arSend !== 'off') throw new Error('AR: при выключенном Telegram отправка должна быть отключена, а не ' + arSend);
     await page.evaluate(() => window.__secureOsTest.arghost().finish());
     await page.waitForSelector('#screen-reward:not(.hidden)', { timeout: 8000 });
     const arStory = await page.evaluate(
