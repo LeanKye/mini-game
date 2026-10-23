@@ -1012,7 +1012,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       return;
     }
     drawBody(OUTRO_TEXT, 16, 100, mainButtonRect().y - 20);
-    button('Дальше', mainButtonRect(), '#ffe066');
+    if (!outroBusy) button('Дальше', mainButtonRect(), '#ffe066');
   }
 
   function render2D() {
