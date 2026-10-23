@@ -536,34 +536,31 @@ async function main() {
     await page.waitForSelector('#screen-game:not(.hidden)');
     await page.waitForTimeout(200);
     const arPhase0 = await page.evaluate(() => window.__secureOsTest.arghost().phase());
-    if (arPhase0 !== 'scan') throw new Error('AR: старт должен быть на фазе сканирования, а не ' + arPhase0);
+    if (arPhase0 !== 'intro') throw new Error('AR: старт должен быть с приветствия агента, а не ' + arPhase0);
     if (await page.locator('#btn-skip:not(.hidden)').count()) {
       throw new Error('AR: кнопки «Пропустить» быть не должно');
     }
-    results.push('✓ Уровень 10 (AR): старт с фазы сканирования отпечатка, без пропуска');
+    results.push('✓ Уровень 10 (AR): старт с приветствия агента, без пропуска');
 
-    // без камеры/CDN модуль уходит в 2D-фолбэк
+    await page.evaluate(() => window.__secureOsTest.arghost().begin());
+    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'scan', null, { timeout: 8000 });
+    results.push('✓ Уровень 10: доступ к камере -> фото -> переход к сканеру');
+
     await page.evaluate(() => window.__secureOsTest.arghost().skipScan());
-    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'photo', null, { timeout: 3000 });
-    results.push('✓ Уровень 10: скан ведёт к шагу камеры (снимок для доступа)');
-
-    await page.evaluate(() => window.__secureOsTest.arghost().skipPhoto());
-    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'hunt', null, { timeout: 3000 });
     await page.waitForFunction(() => window.__secureOsTest.arghost().huntMode() === '2d', null, { timeout: 12000 });
-    results.push('✓ Уровень 10: без AR-библиотек включается 2D-фолбэк охоты');
+    results.push('✓ Уровень 10: «Агент допущен» -> без AR-библиотек включается 2D-фолбэк охоты');
 
-    await page.evaluate(() => window.__secureOsTest.arghost().disableTelegram());
     await page.evaluate(() => window.__secureOsTest.arghost().completeHunt());
-    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'final', null, { timeout: 5000 });
+    await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'outro', null, { timeout: 5000 });
     const arSend = await page.evaluate(() => window.__secureOsTest.arghost().sendState());
     if (arSend !== 'off') throw new Error('AR: при выключенном Telegram отправка должна быть отключена, а не ' + arSend);
-    await page.evaluate(() => window.__secureOsTest.arghost().finish());
-    await page.waitForSelector('#screen-reward:not(.hidden)', { timeout: 8000 });
+    await page.evaluate(() => window.__secureOsTest.arghost().pressOutro());
+    await page.waitForSelector('#screen-reward:not(.hidden)', { timeout: 10000 });
     const arStory = await page.evaluate(
       () => document.querySelector('#reward-story')?.textContent?.trim() || ''
     );
-    if (!arStory) throw new Error('AR: после победы экран награды пуст');
-    results.push('✓ Уровень 10 (AR): волны -> удостоверение -> награда');
+    if (!arStory) throw new Error('AR: после финала экран награды пуст');
+    results.push('✓ Уровень 10 (AR): финал «Спасибо» -> награда');
 
   } catch (err) {
     results.push(`✗ ОШИБКА: ${err.message}`);
