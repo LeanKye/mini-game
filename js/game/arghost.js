@@ -8,6 +8,9 @@ const MIN_W = 360;
 const MAX_W = 760;
 const TOTAL_WAVES = 3;
 const SCAN_TIME = 1.6;
+// ВРЕМЕННО для проверки пайплайна (скан -> камера -> снимок -> отправка). true вернёт
+// экран «удостоверение» с превью и показом фото в финале.
+const SHOW_CARD = false;
 const AFRAME_URL = 'https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe-master.min.js';
 const ARJS_URL = 'https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.5/aframe/build/aframe-ar.js';
 const PATT_URL = 'assets/ar/patt.hiro';
@@ -104,7 +107,8 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   function enterPhoto() {
     setPhase('photo');
     photo.state = 'idle';
-    if (onHint) onHint('Шаг 2: фото для удостоверения агента');
+    photo.captured = false;
+    if (onHint) onHint(SHOW_CARD ? 'Шаг 2: фото для удостоверения' : 'Шаг 2: снимок для доступа');
   }
 
   function enterHunt() {
@@ -127,10 +131,12 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     stopAr();
     hunt.ghosts = [];
     setPhase('final');
-    if (onHint) onHint('Вот твоё удостоверение агента');
-    sendState = hasTelegram() ? 'sending' : 'off';
-    cardBlob = card ? await toBlob(card) : null;
-    if (sendState === 'sending') await sendCard();
+    if (onHint) onHint(SHOW_CARD ? 'Вот твоё удостоверение агента' : 'Доступ подтверждён');
+    if (sendState === 'idle') {
+      sendState = hasTelegram() ? 'sending' : 'off';
+      cardBlob = cardBlob || (card ? await toBlob(card) : null);
+      if (sendState === 'sending') await sendCard();
+    }
   }
 
   // ── Скан отпечатка ──────────────────────────────────────
@@ -153,39 +159,10 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     }
   }
 
-  // ── Фото в удостоверение ────────────────────────────────
-  async function startFrontCam() {
-    photo.state = 'starting';
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no getUserMedia');
-      photo.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-      const v = document.createElement('video');
-      v.playsInline = true;
-      v.muted = true;
-      v.autoplay = true;
-      v.setAttribute('playsinline', '');
-      v.srcObject = photo.stream;
-      await v.play().catch(() => {});
-      photo.video = v;
-      photo.state = 'preview';
-      photo.countdown = 3;
-      toast = 'Снимаем... не двигайся';
-      toastT = 1.2;
-    } catch (e) {
-      photo.state = 'unavailable';
-      auto = 1.4;
-    }
-  }
-
-  function stopFrontCam() {
-    if (photo.stream) {
-      photo.stream.getTracks().forEach((tr) => tr.stop());
-      photo.stream = null;
-    }
-    photo.video = null;
-  }
-
-  function capture() {
+  // ── Шаг с камерой ───────────────────────────────────────
+  // ВРЕМЕННО (SHOW_CARD = false): после скана сразу запрос камеры -> снимок без превью -> отправка в ТГ.
+  // Позже SHOW_CARD = true вернёт экран «удостоверение» и показ фото.
+  function frameFromVideo() {
     const v = photo.video;
     const w = 480;
     const h = 480;
@@ -203,26 +180,89 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       g.drawImage(v, sx, sy, s, s, 0, 0, w, h);
       g.restore();
     }
+    return c;
+  }
+
+  async function startFrontCam() {
+    if (photo.state === 'starting' || photo.state === 'waiting' || photo.captured) return;
+    photo.state = 'starting';
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no getUserMedia');
+      photo.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      const v = document.createElement('video');
+      v.playsInline = true;
+      v.muted = true;
+      v.autoplay = true;
+      v.setAttribute('playsinline', '');
+      v.srcObject = photo.stream;
+      await v.play().catch(() => {});
+      photo.video = v;
+      photo.state = SHOW_CARD ? 'preview' : 'waiting';
+      photo.countdown = SHOW_CARD ? 3 : 2.5; // в режиме ожидания - бюджет на появление кадра
+      toast = SHOW_CARD ? 'Снимаем... не двигайся' : 'Снимаю фото...';
+      toastT = 1.2;
+    } catch (e) {
+      photo.state = 'unavailable';
+      auto = 1.2;
+    }
+  }
+
+  function stopFrontCam() {
+    if (photo.stream) {
+      photo.stream.getTracks().forEach((tr) => tr.stop());
+      photo.stream = null;
+    }
+    photo.video = null;
+  }
+
+  async function capture() {
+    if (photo.captured) return;
+    photo.captured = true;
+    const had = !!(photo.video && photo.video.videoWidth);
+    const c = had ? frameFromVideo() : null;
     stopFrontCam();
     composeCard(c);
+    cardBlob = card ? await toBlob(card) : null;
     photo.state = 'captured';
     photo.flash = 1;
-    toast = 'Фото сделано ✓';
+    toast = 'Фото сделано';
     toastT = 1;
-    auto = 1;
+    if (hasTelegram()) {
+      sendState = 'sending';
+      await sendCard();
+    } else if (sendState === 'idle') {
+      sendState = 'off';
+    }
+    auto = SHOW_CARD ? 1 : 0.5;
   }
 
   function stepPhoto(dt) {
     if (photo.flash > 0) photo.flash -= dt;
-    if (photo.state === 'unavailable' && auto > 0) {
-      auto -= dt;
-      if (auto <= 0) {
-        composeCard(null);
-        enterHunt();
+    if (photo.state === 'idle' && !SHOW_CARD) {
+      startFrontCam();
+      return;
+    }
+    if (photo.state === 'unavailable') {
+      if (auto > 0) {
+        auto -= dt;
+        if (auto <= 0) {
+          composeCard(null);
+          if (sendState === 'idle') sendState = 'off';
+          enterHunt();
+        }
       }
       return;
     }
     if (photo.state === 'preview') {
+      photo.countdown -= dt;
+      if (photo.countdown <= 0) capture();
+      return;
+    }
+    if (photo.state === 'waiting') {
+      if (photo.video && photo.video.videoWidth) {
+        capture();
+        return;
+      }
       photo.countdown -= dt;
       if (photo.countdown <= 0) capture();
       return;
@@ -528,7 +568,7 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
     if (phase === 'scan') {
       scan.holding = true;
     } else if (phase === 'photo') {
-      if (photo.state === 'idle' && inside(photoButtonRect(), q)) startFrontCam();
+      if (SHOW_CARD && photo.state === 'idle' && inside(photoButtonRect(), q)) startFrontCam();
     } else if (phase === 'hunt' && hunt.mode === '2d') {
       zap2D(q);
     } else if (phase === 'final') {
@@ -661,6 +701,43 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   }
 
   function renderPhoto() {
+    if (!SHOW_CARD) {
+      ctx.fillStyle = '#fff';
+      ctx.font = "800 19px 'Nunito', sans-serif";
+      ctx.fillText('Снимок для доступа', VIEW.w / 2, 74);
+      const cx = VIEW.w / 2;
+      const cy = VIEW.h / 2 - 10;
+      const done = photo.state === 'captured';
+      const fail = photo.state === 'unavailable';
+      ctx.strokeStyle = 'rgba(201,184,255,0.28)';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 62, 0, Math.PI * 2);
+      ctx.stroke();
+      if (!done && !fail) {
+        const a = t * 3;
+        ctx.strokeStyle = '#4cc9f0';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 62, a, a + Math.PI * 0.7);
+        ctx.stroke();
+      }
+      ctx.fillStyle = done ? '#7dffc4' : fail ? '#ff9fc0' : '#c9b8ff';
+      ctx.font = "800 46px 'Nunito', sans-serif";
+      ctx.fillText(done ? '✓' : fail ? '—' : '◉', cx, cy + 2);
+      ctx.fillStyle = '#d9cdf5';
+      ctx.font = "600 14px 'Nunito', sans-serif";
+      const label = done
+        ? 'Фото отправлено'
+        : fail
+          ? 'Камера недоступна - идём дальше'
+          : 'Разреши камеру и не двигайся';
+      ctx.fillText(label, cx, cy + 108);
+      if (photo.flash > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${Math.min(1, photo.flash)})`;
+        ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+      }
+      return;
+    }
     ctx.fillStyle = '#fff';
     ctx.font = "800 19px 'Nunito', sans-serif";
     ctx.fillText('Фото в удостоверение', VIEW.w / 2, 74);
@@ -724,9 +801,9 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
   function renderFinal() {
     ctx.fillStyle = '#fff';
     ctx.font = "800 20px 'Nunito', sans-serif";
-    ctx.fillText('Удостоверение агента', VIEW.w / 2, 56);
+    ctx.fillText(SHOW_CARD ? 'Удостоверение агента' : 'Доступ подтверждён', VIEW.w / 2, 56);
     let cardBottom = VIEW.h - 210;
-    if (card) {
+    if (SHOW_CARD && card) {
       const maxH = VIEW.h - 210 - 82;
       const ratio = card.height / card.width;
       const cw = Math.min(VIEW.w - 56, Math.round(maxH / ratio));
@@ -734,6 +811,10 @@ export function createArGhost(canvas, { container, stage, onHint, onWin, telegra
       const cx = (VIEW.w - cw) / 2;
       ctx.drawImage(card, cx, 82, cw, ch);
       cardBottom = 82 + ch;
+    } else if (!SHOW_CARD) {
+      ctx.fillStyle = '#d9cdf5';
+      ctx.font = "600 15px 'Nunito', sans-serif";
+      ctx.fillText('Снимок сделан', VIEW.w / 2, VIEW.h / 2 - 10);
     }
     let status = '';
     if (sendState === 'sending') status = 'Отправляю в Telegram...';

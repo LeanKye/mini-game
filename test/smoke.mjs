@@ -544,7 +544,7 @@ async function main() {
     // без камеры/CDN модуль уходит в 2D-фолбэк
     await page.evaluate(() => window.__secureOsTest.arghost().skipScan());
     await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'photo', null, { timeout: 3000 });
-    results.push('✓ Уровень 10: скан ведёт к шагу «фото в удостоверение»');
+    results.push('✓ Уровень 10: скан ведёт к шагу камеры (снимок для доступа)');
 
     await page.evaluate(() => window.__secureOsTest.arghost().skipPhoto());
     await page.waitForFunction(() => window.__secureOsTest.arghost().phase() === 'hunt', null, { timeout: 3000 });
